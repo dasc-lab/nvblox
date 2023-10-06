@@ -171,6 +171,7 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
   timing::Timer timer_file_depth("file_loading/depth_image");
   // DepthImage depth_frame;
   if (!depth_image_loader_->getNextImage(depth_frame_ptr)) {
+    LOG(INFO) << "No more depth images.";
     return DataLoadResult::kNoMoreData;
   }
   timer_file_depth.Stop();
@@ -181,6 +182,7 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
     timing::Timer timer_file_color("file_loading/color_image");
     // ColorImage color_frame;
     if (!color_image_loader_->getNextImage(color_frame_ptr)) {
+      LOG(INFO) << "No more color images.";
       return DataLoadResult::kNoMoreData;
     }
     timer_file_color.Stop();
@@ -192,6 +194,7 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
   if (!threedmatch::internal::parseCameraFromFile(
           threedmatch::internal::getPathForCameraIntrinsics(base_path_),
           &camera_intrinsics)) {
+    LOG(INFO) << "Could not find camera intrinsics.";
     return DataLoadResult::kNoMoreData;
   }
   // Create a camera object.
@@ -208,6 +211,7 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
           threedmatch::internal::getPathForFramePose(base_path_, seq_id_,
                                                      frame_number),
           &T_O_C)) {
+    LOG(INFO) << "Could not find pose for frame " << frame_number << ".";
     return DataLoadResult::kNoMoreData;
   }
 

@@ -483,6 +483,7 @@ bool Fuser::integrateFrame(const int frame_number) {
     return true;  // Bad data but keep going
   }
   if (load_result == datasets::DataLoadResult::kNoMoreData) {
+    LOG(INFO) << "No more data to load.";
     return false;  // Shows over folks
   }
 
@@ -521,6 +522,7 @@ bool Fuser::integrateFrame(const int frame_number) {
 
 bool Fuser::integrateFrames() {
   int frame_number = 0;
+  LOG(INFO) << "Integrating " << num_frames_to_integrate_ << " frames.";
   while (frame_number < num_frames_to_integrate_ &&
          integrateFrame(frame_number++)) {
     timing::mark("Frame " + std::to_string(frame_number - 1), Color::Red());
