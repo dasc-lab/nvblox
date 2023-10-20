@@ -201,7 +201,6 @@ TEST_F(OccupancyIntegratorTest, SphereSceneTest) {
   std::cout << "num_voxel_invalid: " << num_voxel_invalid << std::endl;
   std::cout << "total_num_voxels: " << total_num_voxels << std::endl;
   std::cout << "percentage_invalid: " << percentage_invalid << std::endl;
-
   if (FLAGS_nvblox_test_file_output) {
     io::outputVoxelLayerToPly(gt_layer, "occupancy_sphere_gt.ply");
     io::outputVoxelLayerToPly(layer_gpu, "occupancy_sphere.ply");
@@ -213,5 +212,6 @@ int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   google::InstallFailureSignalHandler();
   testing::InitGoogleTest(&argc, argv);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return RUN_ALL_TESTS();
 }
