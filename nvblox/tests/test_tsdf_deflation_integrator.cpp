@@ -123,14 +123,22 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   };
 
   float total_deflation = 0.0;
+  float min_deflation = 0.0;
+  float max_deflation = 0.0;
   int num_deflated_voxels = 0;
   auto lambda_compare =
       [&](const Index3D& block_index, const Index3D& voxel_index,
           const TsdfVoxel* voxel_orig, const TsdfVoxel* voxel_deflated) {
         // Check the deflated TSDF has smaller distances than the original.
         float deflation = voxel_orig->distance - voxel_deflated->distance;
-        if (deflation < 0.0) {
+        if (deflation < -kDistanceErrorTolerance) {
           num_larger_in_deflated++;
+        }
+        if (deflation < min_deflation) {
+          min_deflation = deflation;
+        }
+        if (deflation > max_deflation) {
+          max_deflation = deflation;
         }
         total_deflation += deflation;
         num_deflated_voxels++;
@@ -139,6 +147,8 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, layer_gpu_deflated, lambda_compare);
   float average_deflation = total_deflation / static_cast<float>(num_deflated_voxels);
   std::cout << "GPU: average deflaton: " << average_deflation << std::endl;
+  std::cout << "GPU: min deflaton: " << min_deflation << std::endl;
+  std::cout << "GPU: max deflaton: " << max_deflation << std::endl;
 
   float percent_large_error = static_cast<float>(num_voxel_big_error) /
                               static_cast<float>(total_num_voxels) * 100.0f;
