@@ -121,6 +121,46 @@ void callFunctionOnAllVoxels(BlockLayer<VoxelBlock<VoxelType>>* layer,
   }
 }
 
+// Version that operates on two layers.
+// Gets the voxel from the first layer and the corresponding voxel from the
+// second layer. Requires blocks to be allocated in both layers.
+template <typename VoxelType>
+void callFunctionOnAllVoxels(BlockLayer<VoxelBlock<VoxelType>>& layer,
+                             BlockLayer<VoxelBlock<VoxelType>>& layer2,
+                             TwoVoxelCallbackFunction<VoxelType> callback) {
+  std::vector<Index3D> block_indices = layer.getAllBlockIndices();
+
+  constexpr int kVoxelsPerSide = VoxelBlock<VoxelType>::kVoxelsPerSide;
+
+  // Iterate over all the blocks:
+  for (const Index3D& block_index : block_indices) {
+    Index3D voxel_index;
+    typename VoxelBlock<VoxelType>::Ptr block =
+        layer.getBlockAtIndex(block_index);
+    typename VoxelBlock<VoxelType>::Ptr block2 =
+        layer2.getBlockAtIndex(block_index);
+    if (!block || !block2) {
+      continue;
+    }
+    // Iterate over all the voxels:
+    for (voxel_index.x() = 0; voxel_index.x() < kVoxelsPerSide;
+         voxel_index.x()++) {
+      for (voxel_index.y() = 0; voxel_index.y() < kVoxelsPerSide;
+           voxel_index.y()++) {
+        for (voxel_index.z() = 0; voxel_index.z() < kVoxelsPerSide;
+             voxel_index.z()++) {
+          // Get the voxel and call the callback on it:
+          VoxelType* voxel =
+              &block->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
+          VoxelType* voxel2 =
+              &block2->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
+          callback(block_index, voxel_index, voxel, voxel2);
+        }
+      }
+    }
+  }
+}
+
 template <typename VoxelType>
 const VoxelType* getVoxelAtBlockAndVoxelIndex(
     const BlockLayer<VoxelBlock<VoxelType>>& layer, const Index3D& block_index,

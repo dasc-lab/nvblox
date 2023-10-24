@@ -188,6 +188,7 @@ add_library(nvblox_lib SHARED
     src/integrators/projective_tsdf_integrator.cu
     src/integrators/projective_color_integrator.cu
     src/integrators/esdf_integrator.cu
+    src/integrators/tsdf_deflation_integrator.cu
     src/rays/sphere_tracer.cu
     src/interpolation/interpolation_3d.cpp
     src/io/mesh_io.cpp

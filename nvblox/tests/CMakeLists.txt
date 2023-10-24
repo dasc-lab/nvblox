@@ -188,3 +188,7 @@ gtest_discover_tests(test_weighting_function ${TEST_OPTIONS})
 add_executable(test_image_io test_image_io.cpp)
 target_link_libraries(test_image_io nvblox_test_utils)
 gtest_discover_tests(test_image_io ${TEST_OPTIONS})
+
+add_executable(test_tsdf_deflation_integrator test_tsdf_deflation_integrator.cpp)
+target_link_libraries(test_tsdf_deflation_integrator nvblox_test_utils)
+gtest_discover_tests(test_tsdf_deflation_integrator ${TEST_OPTIONS})
