@@ -41,13 +41,14 @@ class TsdfDeflationIntegratorTest : public ::testing::Test {
 TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   constexpr float kTrajectoryRadius = 4.0f;
   constexpr float kTrajectoryHeight = 2.0f;
-  constexpr int kNumTrajectoryPoints = 1;
+  constexpr int kNumTrajectoryPoints = 50;
   constexpr float kTruncationDistanceVox = 2;
   constexpr float kTruncationDistanceMeters =
       kTruncationDistanceVox * voxel_size_m_;
   constexpr float kMaxDist = 10.0;
   constexpr float kMinWeight = 1.0;
-  const float decrement{0.5f};
+  const float decrement{0.05f};
+  const float min_value{-10.0f};
 
   // Tolerance for error.
   constexpr float kDistanceErrorTolerance = kTruncationDistanceMeters;
@@ -60,6 +61,7 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   // Create an integrator.
   ProjectiveTsdfIntegrator integrator;
   TsdfDeflationIntegrator deflation_integrator;
+  deflation_integrator.min_distance = min_value;
   integrator.truncation_distance_vox(kTruncationDistanceVox);
 
   // Simulate a trajectory of the requisite amount of points, on the circle
@@ -122,8 +124,8 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   };
 
   float total_deflation = 0.0;
-  float min_deflation = 0.0;
-  float max_deflation = 0.0;
+  float min_deflation = std::numeric_limits<float>::max();
+  float max_deflation = std::numeric_limits<float>::min();
   int num_deflated_voxels = 0;
   int num_larger_in_deflated = 0;
   int num_significantly_larger_in_deflated = 0;
@@ -165,8 +167,10 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   std::cout << "GPU: num_significantly_larger_in_deflated: " << num_significantly_larger_in_deflated << std::endl;
 
   if (FLAGS_nvblox_test_file_output) {
-    io::outputVoxelLayerToPly(layer_gpu, "test_tsdf_projective_gpu.ply");
-    io::outputVoxelLayerToPly(gt_layer, "test_tsdf_projective_gt.ply");
+    std::cout << "Writing pointcloud outputs" << std::endl;
+    io::outputVoxelLayerToPly(layer_gpu, "test_def_tsdf_gpu.ply");
+    io::outputVoxelLayerToPly(layer_gpu_deflated, "test_def_tsdf_deflated_gpu.ply");
+    io::outputVoxelLayerToPly(gt_layer, "test_def_tsdf_gt.ply");
   }
 }
 
