@@ -143,7 +143,7 @@ class VoxelGrid:
             voxel_indices_zero_based[:, 2]] = voxel_values
         return VoxelGrid(sdf, min_indices, voxel_size)
 
-    def get_slice_mesh_at_ratio(self, slice_level_ratio: float, axis: str = 'x', cube_size: float = 0.75) -> o3d.geometry.TriangleMesh:
+    def get_slice_mesh_at_ratio(self, slice_level_ratio: float, axis: str = 'x', cube_size: float = 0.75, bounds: Tuple = (None, None)) -> o3d.geometry.TriangleMesh:
         """Gets a mesh representing a slice at ratio (0.0-1.0) along dimension axis.
 
         Args:
@@ -164,9 +164,9 @@ class VoxelGrid:
         else:
             axis_idx = 2
         slice_level_idx = int(self.shape()[axis_idx] * slice_level_ratio)
-        return self.get_slice_mesh_at_index(slice_level_idx, axis, cube_size)
+        return self.get_slice_mesh_at_index(slice_level_idx, axis, cube_size, bounds)
 
-    def get_slice_mesh_at_index(self, slice_level_idx: int, axis: str = 'x', cube_size: float = 0.75) -> o3d.geometry.TriangleMesh:
+    def get_slice_mesh_at_index(self, slice_level_idx: int, axis: str = 'x', cube_size: float = 0.75, bounds: Tuple = (None, None)) -> o3d.geometry.TriangleMesh:
         """Gets a mesh representing a slice at slice_level_idx along dimension axis.
 
         Args:
@@ -184,10 +184,16 @@ class VoxelGrid:
         # The VoxelGrid values to clip at
         percentile_lim_upper = 90
         percentile_lim_lower = 10
-        sdf_clip_max = np.percentile(
-            self.get_valid_voxel_values(), percentile_lim_upper)
-        sdf_clip_min = np.percentile(
-            self.get_valid_voxel_values(), percentile_lim_lower)
+        if bounds[1] is None:
+            sdf_clip_max = np.percentile(
+                self.get_valid_voxel_values(), percentile_lim_upper)
+        else:
+            sdf_clip_max = bounds[1]
+        if bounds[0] is None:
+            sdf_clip_min = np.percentile(
+                self.get_valid_voxel_values(), percentile_lim_lower)
+        else:
+            sdf_clip_min = bounds[0]
 
         # Size of the cubes
         voxel_cube_size = self.voxel_size * cube_size
