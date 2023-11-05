@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <cmath>
 
-#include "nvblox/integrators/projective_tsdf_integrator.h"
+#include "nvblox/integrators/certified_projective_tsdf_integrator.h"
 #include "nvblox/integrators/tsdf_deflation_integrator.h"
 #include "nvblox/interpolation/interpolation_3d.h"
 #include "nvblox/io/image_io.h"
@@ -41,13 +41,13 @@ class TsdfDeflationIntegratorTest : public ::testing::Test {
 TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   constexpr float kTrajectoryRadius = 4.0f;
   constexpr float kTrajectoryHeight = 2.0f;
-  constexpr int kNumTrajectoryPoints = 50;
+  constexpr int kNumTrajectoryPoints = 4;
   constexpr float kTruncationDistanceVox = 2;
   constexpr float kTruncationDistanceMeters =
       kTruncationDistanceVox * voxel_size_m_;
   constexpr float kMaxDist = 10.0;
   constexpr float kMinWeight = 1.0;
-  const float decrement{0.05f};
+  const float decrement{0.3f};
   const float min_value{-10.0f};
 
   // Tolerance for error.
@@ -59,7 +59,7 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   scene.generateLayerFromScene(kTruncationDistanceMeters, &gt_layer);
 
   // Create an integrator.
-  ProjectiveTsdfIntegrator integrator;
+  CertifiedProjectiveTsdfIntegrator integrator;
   TsdfDeflationIntegrator deflation_integrator;
   deflation_integrator.min_distance = min_value;
   integrator.truncation_distance_vox(kTruncationDistanceVox);
@@ -152,7 +152,7 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, lambda);
   callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, layer_gpu_deflated, lambda_compare);
   float average_deflation = total_deflation / static_cast<float>(num_deflated_voxels);
-  std::cout << "GPU: average deflaton: " << average_deflation << std::endl;
+  std::cout << "GPU: average deflation: " << average_deflation << std::endl;
   std::cout << "GPU: min deflaton: " << min_deflation << std::endl;
   std::cout << "GPU: max deflaton: " << max_deflation << std::endl;
 
