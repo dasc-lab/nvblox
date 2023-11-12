@@ -57,14 +57,20 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     // Write NEW voxel values (to global GPU memory)
     voxel_ptr->distance = new_distance;
 
-    // TODO(rgg): examine whether there is a more efficient way to mark observed voxels?
-    // Weight update is needed because it also marks the voxel as observed.
+    // TODO(rgg): examine whether there is a more efficient way to mark observed
+    // voxels? Weight update is needed because it also marks the voxel as
+    // observed.
 
     // Get the weight of this observation from the sensor model.
     const float measurement_weight = weighting_function_(
         surface_depth_measured, voxel_depth_m, truncation_distance_m_);
     // TODO(rgg): remove magic number here
-    voxel_ptr->weight = measurement_weight+0.06;  // 0.001 is the min threshold for observability, 0.1 for "softly" observed
+    voxel_ptr->weight =
+        measurement_weight +
+        0.09;  // 0.001 is the min threshold for observability, 0.1 for "softly"
+               // observed. Adding ~0.06 here seems like a reasonable
+               // compromise, but it'd be better to design a weighting function
+               // that does what we want it to.
     return true;
   }
 
@@ -89,7 +95,8 @@ CertifiedProjectiveTsdfIntegrator::~CertifiedProjectiveTsdfIntegrator() {
 }
 
 unified_ptr<CertifiedUpdateTsdfVoxelFunctor>
-CertifiedProjectiveTsdfIntegrator::getTsdfUpdateFunctorOnDevice(float voxel_size) {
+CertifiedProjectiveTsdfIntegrator::getTsdfUpdateFunctorOnDevice(
+    float voxel_size) {
   // Set the update function params
   // NOTE(alex.millane): We do this with every frame integration to avoid
   // bug-prone logic for detecting when params have changed etc.
@@ -127,15 +134,17 @@ void CertifiedProjectiveTsdfIntegrator::integrateFrame(
       updated_blocks);
 }
 
-float CertifiedProjectiveTsdfIntegrator::max_weight() const { return max_weight_; }
+float CertifiedProjectiveTsdfIntegrator::max_weight() const {
+  return max_weight_;
+}
 
 void CertifiedProjectiveTsdfIntegrator::max_weight(float max_weight) {
   CHECK_GT(max_weight, 0.0f);
   max_weight_ = max_weight;
 }
 
-WeightingFunctionType CertifiedProjectiveTsdfIntegrator::weighting_function_type()
-    const {
+WeightingFunctionType
+CertifiedProjectiveTsdfIntegrator::weighting_function_type() const {
   return weighting_function_type_;
 }
 
@@ -144,7 +153,8 @@ void CertifiedProjectiveTsdfIntegrator::weighting_function_type(
   weighting_function_type_ = weighting_function_type;
 }
 
-float CertifiedProjectiveTsdfIntegrator::marked_unobserved_voxels_distance_m() const {
+float CertifiedProjectiveTsdfIntegrator::marked_unobserved_voxels_distance_m()
+    const {
   return marked_unobserved_voxels_distance_m_;
 }
 
@@ -153,7 +163,8 @@ void CertifiedProjectiveTsdfIntegrator::marked_unobserved_voxels_distance_m(
   marked_unobserved_voxels_distance_m_ = marked_unobserved_voxels_distance_m;
 }
 
-float CertifiedProjectiveTsdfIntegrator::marked_unobserved_voxels_weight() const {
+float CertifiedProjectiveTsdfIntegrator::marked_unobserved_voxels_weight()
+    const {
   return marked_unobserved_voxels_weight_;
 }
 
@@ -170,13 +181,14 @@ std::string CertifiedProjectiveTsdfIntegrator::getIntegratorName() const {
 // - One threadBlock per VoxelBlock
 // - 8x8x8 threads per threadBlock
 __global__ void setUnobservedVoxelsCertKernel(const TsdfVoxel voxel_value,
-                                          TsdfBlock** tsdf_block_ptrs) {
+                                              TsdfBlock** tsdf_block_ptrs) {
   // Get the voxel addressed by this thread.
   TsdfBlock* tsdf_block = tsdf_block_ptrs[blockIdx.x];
   TsdfVoxel* tsdf_voxel =
       &tsdf_block->voxels[threadIdx.z][threadIdx.y][threadIdx.x];
   // If voxel not observed set it to the constant value input to the kernel.
-  // TODO(rgg): examine whether there is a more efficient way to mark observed voxels?
+  // TODO(rgg): examine whether there is a more efficient way to mark observed
+  // voxels?
   constexpr float kMinObservedWeight = 0.001;
   if (tsdf_voxel->weight < kMinObservedWeight) {
     *tsdf_voxel = voxel_value;
@@ -219,7 +231,7 @@ void CertifiedProjectiveTsdfIntegrator::markUnobservedFreeInsideRadius(
   const dim3 num_threads_per_block(kVoxelsPerSide, kVoxelsPerSide,
                                    kVoxelsPerSide);
   setUnobservedVoxelsCertKernel<<<num_thread_blocks, num_threads_per_block, 0,
-                              integration_stream_>>>(
+                                  integration_stream_>>>(
       slightly_observed_tsdf_voxel, block_ptrs_device.data());
   cudaStreamSynchronize(integration_stream_);
   checkCudaErrors(cudaPeekAtLastError());
@@ -229,6 +241,5 @@ void CertifiedProjectiveTsdfIntegrator::markUnobservedFreeInsideRadius(
     *updated_blocks_ptr = blocks_inside_radius;
   }
 }
-
 
 }  // namespace nvblox

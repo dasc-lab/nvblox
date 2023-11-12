@@ -25,6 +25,8 @@ namespace nvblox {
 
 using TsdfBlock = VoxelBlock<TsdfVoxel>;
 using TsdfLayer = VoxelBlockLayer<TsdfVoxel>;
+using CertifiedTsdfBlock = VoxelBlock<CertifiedTsdfVoxel>;
+using CertifiedTsdfLayer = VoxelBlockLayer<CertifiedTsdfVoxel>;
 using OccupancyBlock = VoxelBlock<OccupancyVoxel>;
 using OccupancyLayer = VoxelBlockLayer<OccupancyVoxel>;
 using EsdfBlock = VoxelBlock<EsdfVoxel>;

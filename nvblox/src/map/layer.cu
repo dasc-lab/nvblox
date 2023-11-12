@@ -28,6 +28,11 @@ template void VoxelBlockLayer<TsdfVoxel>::getVoxelsGPU(
     device_vector<TsdfVoxel>* voxels_ptr,
     device_vector<bool>* success_flags_ptr) const;
 
+template void VoxelBlockLayer<CertifiedTsdfVoxel>::getVoxelsGPU(
+    const device_vector<Vector3f>& positions_L,
+    device_vector<CertifiedTsdfVoxel>* voxels_ptr,
+    device_vector<bool>* success_flags_ptr) const;
+
 template void VoxelBlockLayer<ColorVoxel>::getVoxelsGPU(
     const device_vector<Vector3f>& positions_L,
     device_vector<ColorVoxel>* voxels_ptr,

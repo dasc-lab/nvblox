@@ -29,6 +29,15 @@ struct TsdfVoxel {
   float weight = 0.0f;
 };
 
+// Currently used in an identical manner to TSDF Voxel, but may change in the future.
+// Need a separate type since LayerCake can only store one of each layer type currently.
+struct CertifiedTsdfVoxel {
+  /// Signed projective distance of the voxel from a surface.
+  float distance = 0.0f;
+  /// How many observations/how confident we are in this observation.
+  float weight = 0.0f;
+};
+
 /// Voxels that stores the distance and full direction to the nearest surface.
 struct EsdfVoxel {
   // TODO(helen): optimize the memory layout here.

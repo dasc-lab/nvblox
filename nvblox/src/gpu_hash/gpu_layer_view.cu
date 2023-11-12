@@ -26,6 +26,7 @@ namespace nvblox {
 
 // Compile Specializations for the standard block types.
 template class GPULayerView<TsdfBlock>;
+template class GPULayerView<CertifiedTsdfBlock>;
 template class GPULayerView<EsdfBlock>;
 template class GPULayerView<ColorBlock>;
 template class GPULayerView<OccupancyBlock>;
