@@ -28,8 +28,9 @@ Mapper::Mapper(float voxel_size_m, MemoryType memory_type,
     : voxel_size_m_(voxel_size_m),
       memory_type_(memory_type),
       projective_layer_type_(projective_layer_type) {
-  layers_ = LayerCake::create<TsdfLayer, ColorLayer, OccupancyLayer, EsdfLayer,
-                              MeshLayer>(voxel_size_m_, memory_type);
+  layers_ = LayerCake::create<TsdfLayer, CertifiedTsdfLayer, ColorLayer,
+                              OccupancyLayer, EsdfLayer, MeshLayer>(
+      voxel_size_m_, memory_type);
 }
 
 Mapper::Mapper(const std::string& map_filepath, MemoryType memory_type)
@@ -47,6 +48,18 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
                                     &updated_blocks);
     // The mesh is only updated for the tsdf projective layer
     mesh_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
+    std::vector<Index3D> certified_updated_blocks;
+    // If certified mapping is enabled, update the certified map as well.
+    // Unfortunate cast here so we don't have to template the integrator.
+    // Relies on certified TSDF voxels being identical to TSDF voxels.
+    // TODO(rgg): fix this.
+    if (certified_mapping_enabled) {
+      certified_tsdf_integrator_.integrateFrame(
+          depth_frame, T_L_C, camera,
+          reinterpret_cast<TsdfLayer*>(
+              layers_.getPtr<CertifiedTsdfLayer>()),
+          &certified_updated_blocks);
+    }
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
     occupancy_integrator_.integrateFrame(depth_frame, T_L_C, camera,
                                          layers_.getPtr<OccupancyLayer>(),
@@ -54,6 +67,23 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
   }
   // Update all the relevant queues.
   esdf_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
+}
+
+void Mapper::deflateCertifiedTsdf(const float eps_R, const float eps_t) {
+  // Call the integrator.
+  // TODO(rgg): determine if this actuallly does need to be synchronous, or if
+  // we need to remember camera positions?
+  if (!certified_mapping_enabled) {
+    LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
+    return;
+  }
+  float decrement = eps_t;  // TODO(rgg): calculate this based on eps_R, eps_t.
+  // Unfortunate cast here so we don't have to template the integrator.
+  // Relies on certified TSDF voxels being identical to TSDF voxels.
+  // TODO(rgg): fix this.
+  tsdf_deflation_integrator_.deflate(
+      reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
+      decrement);
 }
 
 void Mapper::integrateLidarDepth(const DepthImage& depth_frame,
@@ -192,13 +222,13 @@ std::vector<Index3D> Mapper::clearOutsideRadius(const Vector3f& center,
                                                 float radius) {
   std::vector<Index3D> block_indices_for_deletion;
   if (projective_layer_type_ == ProjectiveLayerType::kTsdf) {
-    block_indices_for_deletion = getBlocksOutsideRadius(layers_.get<TsdfLayer>().getAllBlockIndices(),
-                          layers_.get<TsdfLayer>().block_size(), center,
-                          radius);
+    block_indices_for_deletion = getBlocksOutsideRadius(
+        layers_.get<TsdfLayer>().getAllBlockIndices(),
+        layers_.get<TsdfLayer>().block_size(), center, radius);
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
-    block_indices_for_deletion = getBlocksOutsideRadius(layers_.get<OccupancyLayer>().getAllBlockIndices(),
-                      layers_.get<OccupancyLayer>().block_size(), center,
-                      radius);
+    block_indices_for_deletion = getBlocksOutsideRadius(
+        layers_.get<OccupancyLayer>().getAllBlockIndices(),
+        layers_.get<OccupancyLayer>().block_size(), center, radius);
   }
   for (const Index3D& idx : block_indices_for_deletion) {
     mesh_blocks_to_update_.erase(idx);

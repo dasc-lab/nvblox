@@ -23,6 +23,8 @@ limitations under the License.
 #include "nvblox/integrators/projective_color_integrator.h"
 #include "nvblox/integrators/projective_occupancy_integrator.h"
 #include "nvblox/integrators/projective_tsdf_integrator.h"
+#include "nvblox/integrators/certified_projective_tsdf_integrator.h"
+#include "nvblox/integrators/tsdf_deflation_integrator.h"
 #include "nvblox/map/blox.h"
 #include "nvblox/map/common_names.h"
 #include "nvblox/map/layer.h"
@@ -69,6 +71,9 @@ class Mapper : public MapperBase {
   /// Esdf production, or that this has not yet been determined (kUnset).
   enum class EsdfMode { k3D, k2D, kUnset };
 
+  // Whether to perform certified mapping updates. Will only be used with TSDF projective layer enabled.
+  bool certified_mapping_enabled{false};
+
   Mapper() = delete;
   /// Constructor
   /// @param voxel_size_m The voxel size in meters for the contained layers.
@@ -98,6 +103,11 @@ class Mapper : public MapperBase {
   ///@param camera Intrinsics model of the camera.
   void integrateDepth(const DepthImage& depth_frame, const Transform& T_L_C,
                       const Camera& camera);
+
+  /// Performs a deflation update on the certified TSDF. This may be called independently of
+  /// projective updates, as we may move without acquiring new data.
+  // TODO(rgg): document behavior when implemented here.
+  void deflateCertifiedTsdf(const float eps_R, const float eps_t);
 
   /// Integrates a color frame into the reconstruction.
   ///@param color_frame Color image to integrate.
@@ -335,6 +345,8 @@ class Mapper : public MapperBase {
 
   /// Integrators
   ProjectiveTsdfIntegrator tsdf_integrator_;
+  CertifiedProjectiveTsdfIntegrator certified_tsdf_integrator_;
+  TsdfDeflationIntegrator tsdf_deflation_integrator_;
   ProjectiveTsdfIntegrator lidar_tsdf_integrator_;
   ProjectiveOccupancyIntegrator occupancy_integrator_;
   ProjectiveOccupancyIntegrator lidar_occupancy_integrator_;
