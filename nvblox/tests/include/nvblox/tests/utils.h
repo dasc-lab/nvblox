@@ -24,6 +24,7 @@ limitations under the License.
 #include "nvblox/map/voxels.h"
 
 DECLARE_bool(nvblox_test_file_output);
+DECLARE_bool(nvblox_test_file_output_odometry_aware);
 
 namespace nvblox {
 namespace test_utils {

@@ -7,7 +7,8 @@ namespace nvblox {
 
 /// The SdfDeflationIntegrator class can be used to deflate (decrease the
 /// distance to obstacles) an ESDF or TSDF layer.
-/// This is useful for maintaining safety in the presence of visual odometry error. 
+/// This is useful for maintaining safety in the presence of visual odometry
+/// error.
 class TsdfDeflationIntegrator {
  public:
   TsdfDeflationIntegrator();
@@ -18,15 +19,23 @@ class TsdfDeflationIntegrator {
   /// @param layer_ptr The occupancy layer to deflate
   /// @param amount The amount to deflate by (typically positive)
   void deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr, float decrement);
+  void deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr, const Transform& T_L_C,
+               float eps_R, float eps_t, float voxel_size,
+               const Vector3f& t_delta);
 
-  // Minimum value to decay to. Smaller values allowed if already present in SDF.
+  // Minimum value to decay to. Smaller values allowed if already present in
+  // SDF.
   float min_distance = -0.5;
 
-  // Whether to deallocate blocks that are fully deflated (could be well within an obstacle)
+  // Whether to deallocate blocks that are fully deflated (could be well within
+  // an obstacle)
   bool deallocate_fully_deflated_blocks = true;
 
  private:
   void deflateDistance(TsdfLayer* layer_ptr, float decrement);
+  void deflateDistance(TsdfLayer* layer_ptr, const Transform& T_L_C,
+                       float eps_R, float eps_t, float voxel_size,
+                       const Vector3f& t_delta);
   void deallocateFullyDeflatedBlocks(TsdfLayer* layer_ptr);
   // Internal buffers
   host_vector<TsdfBlock*> allocated_block_ptrs_host_;

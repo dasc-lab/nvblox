@@ -25,6 +25,9 @@ DEFINE_bool(
     nvblox_test_file_output, false,
     "Whether to output debug files from tests to disk or not. Off by default.");
 
+DEFINE_bool(
+    nvblox_test_file_output_odometry_aware, false,
+    "Whether to output debug files from tests to disk or not. Off by default.");
 namespace nvblox {
 namespace test_utils {
 
