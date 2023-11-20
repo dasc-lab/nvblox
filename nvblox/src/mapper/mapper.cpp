@@ -56,8 +56,7 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
     if (certified_mapping_enabled) {
       certified_tsdf_integrator_.integrateFrame(
           depth_frame, T_L_C, camera,
-          reinterpret_cast<TsdfLayer*>(
-              layers_.getPtr<CertifiedTsdfLayer>()),
+          reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
           &certified_updated_blocks);
     }
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
@@ -69,7 +68,8 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
   esdf_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
 }
 
-void Mapper::deflateCertifiedTsdf(const float eps_R, const float eps_t) {
+void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
+                                  const float eps_t) {
   // Call the integrator.
   // TODO(rgg): determine if this actuallly does need to be synchronous, or if
   // we need to remember camera positions?
@@ -78,12 +78,14 @@ void Mapper::deflateCertifiedTsdf(const float eps_R, const float eps_t) {
     return;
   }
   float decrement = eps_t;  // TODO(rgg): calculate this based on eps_R, eps_t.
+  Vector3f t_delta =
+      T_L_C.translation() - prev_T_L_C_.translation();
   // Unfortunate cast here so we don't have to template the integrator.
   // Relies on certified TSDF voxels being identical to TSDF voxels.
   // TODO(rgg): fix this.
   tsdf_deflation_integrator_.deflate(
-      reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
-      decrement);
+      reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()), T_L_C,
+      eps_R, eps_t, voxel_size_m_, t_delta);
 }
 
 void Mapper::integrateLidarDepth(const DepthImage& depth_frame,
