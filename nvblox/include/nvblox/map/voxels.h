@@ -54,6 +54,23 @@ struct EsdfVoxel {
   bool is_site = false;
 };
 
+/// Voxels that stores the distance and full direction to the nearest surface.
+// Similar to CertifiedTsdfVoxel.
+struct CertifiedEsdfVoxel {
+  // TODO(helen): optimize the memory layout here.
+  /// Cached squared distance towards the parent.
+  float squared_distance_vox = 0.0f;
+  /// Direction towards the parent, *in units of voxels*.
+  Eigen::Vector3i parent_direction = Eigen::Vector3i::Zero();
+  /// Whether this voxel is inside the surface or not.
+  bool is_inside = false;
+  /// Whether this voxel has been observed.
+  bool observed = false;
+  /// Whether this voxel is a "site": i.e., near the zero-crossing and is
+  /// eligible to be considered a parent.
+  bool is_site = false;
+};
+
 /// Voxel that stores the color near the surface.
 struct ColorVoxel {
   /// The color!

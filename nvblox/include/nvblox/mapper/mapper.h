@@ -20,6 +20,7 @@ limitations under the License.
 #include "nvblox/core/hash.h"
 #include "nvblox/integrators/certified_projective_tsdf_integrator.h"
 #include "nvblox/integrators/esdf_integrator.h"
+#include "nvblox/integrators/certified_esdf_integrator.h"
 #include "nvblox/integrators/occupancy_decay_integrator.h"
 #include "nvblox/integrators/projective_color_integrator.h"
 #include "nvblox/integrators/projective_occupancy_integrator.h"
@@ -362,6 +363,7 @@ class Mapper : public MapperBase {
   ProjectiveColorIntegrator color_integrator_;
   MeshIntegrator mesh_integrator_;
   EsdfIntegrator esdf_integrator_;
+  CertifiedEsdfIntegrator certified_esdf_integrator_;
 
   /// These collections keep track of the blocks which need to be updated on
   /// the next calls to updateMeshLayer() and updateEsdfLayer()
@@ -369,6 +371,7 @@ class Mapper : public MapperBase {
   /// reconstruction by calls to integrateDepth() and integrateLidarDepth().
   Index3DSet mesh_blocks_to_update_;
   Index3DSet esdf_blocks_to_update_;
+  Index3DSet certified_esdf_blocks_to_update_;
 };
 
 }  // namespace nvblox

@@ -29,8 +29,8 @@ Mapper::Mapper(float voxel_size_m, MemoryType memory_type,
       memory_type_(memory_type),
       projective_layer_type_(projective_layer_type) {
   layers_ = LayerCake::create<TsdfLayer, CertifiedTsdfLayer, ColorLayer,
-                              OccupancyLayer, EsdfLayer, MeshLayer>(
-      voxel_size_m_, memory_type);
+                              OccupancyLayer, EsdfLayer, CertifiedEsdfLayer,
+                              MeshLayer>(voxel_size_m_, memory_type);
 }
 
 Mapper::Mapper(const std::string& map_filepath, MemoryType memory_type)
@@ -48,16 +48,18 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
                                     &updated_blocks);
     // The mesh is only updated for the tsdf projective layer
     mesh_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
-    std::vector<Index3D> certified_updated_blocks;
     // If certified mapping is enabled, update the certified map as well.
     // Unfortunate cast here so we don't have to template the integrator.
     // Relies on certified TSDF voxels being identical to TSDF voxels.
     // TODO(rgg): fix this.
     if (certified_mapping_enabled) {
+      std::vector<Index3D> certified_updated_blocks;
       certified_tsdf_integrator_.integrateFrame(
           depth_frame, T_L_C, camera,
           reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
           &certified_updated_blocks);
+      certified_esdf_blocks_to_update_.insert(certified_updated_blocks.begin(),
+                                              certified_updated_blocks.end());
     }
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
     occupancy_integrator_.integrateFrame(depth_frame, T_L_C, camera,
@@ -78,8 +80,7 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
     return;
   }
   float decrement = eps_t;  // TODO(rgg): calculate this based on eps_R, eps_t.
-  Vector3f t_delta =
-      T_L_C.translation() - prev_T_L_C_.translation();
+  Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
   // Unfortunate cast here so we don't have to template the integrator.
   // Relies on certified TSDF voxels being identical to TSDF voxels.
   // TODO(rgg): fix this.
@@ -159,6 +160,10 @@ std::vector<Index3D> Mapper::updateEsdf() {
   std::vector<Index3D> esdf_blocks_to_update_vector(
       esdf_blocks_to_update_.begin(), esdf_blocks_to_update_.end());
 
+  std::vector<Index3D> certified_esdf_blocks_to_update_vector(
+      certified_esdf_blocks_to_update_.begin(),
+      certified_esdf_blocks_to_update_.end());
+
   if (projective_layer_type_ == ProjectiveLayerType::kTsdf) {
     esdf_integrator_.integrateBlocks(layers_.get<TsdfLayer>(),
                                      esdf_blocks_to_update_vector,
@@ -169,6 +174,12 @@ std::vector<Index3D> Mapper::updateEsdf() {
                                      layers_.getPtr<EsdfLayer>());
   }
 
+  if (certified_mapping_enabled) {
+    certified_esdf_integrator_.integrateBlocks(
+        layers_.get<CertifiedTsdfLayer>(),
+        certified_esdf_blocks_to_update_vector,
+        layers_.getPtr<CertifiedEsdfLayer>());
+  }
   // Mark blocks as updated
   esdf_blocks_to_update_.clear();
 
