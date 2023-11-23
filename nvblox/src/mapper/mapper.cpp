@@ -86,6 +86,7 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
   tsdf_deflation_integrator_.deflate(
       reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()), T_L_C,
       eps_R, eps_t, voxel_size_m_, t_delta);
+  prev_T_L_C_ = T_L_C;
 }
 
 void Mapper::integrateLidarDepth(const DepthImage& depth_frame,
@@ -237,6 +238,7 @@ std::vector<Index3D> Mapper::clearOutsideRadius(const Vector3f& center,
     esdf_blocks_to_update_.erase(idx);
   }
   layers_.getPtr<TsdfLayer>()->clearBlocks(block_indices_for_deletion);
+  layers_.getPtr<CertifiedTsdfLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<ColorLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<EsdfLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<MeshLayer>()->clearBlocks(block_indices_for_deletion);
