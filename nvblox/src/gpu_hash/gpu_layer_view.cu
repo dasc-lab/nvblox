@@ -28,6 +28,7 @@ namespace nvblox {
 template class GPULayerView<TsdfBlock>;
 template class GPULayerView<CertifiedTsdfBlock>;
 template class GPULayerView<EsdfBlock>;
+template class GPULayerView<CertifiedEsdfBlock>;
 template class GPULayerView<ColorBlock>;
 template class GPULayerView<OccupancyBlock>;
 template class GPULayerView<MeshBlock>;
