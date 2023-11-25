@@ -195,6 +195,7 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const TsdfLayer& TSDF layer
   const TsdfLayer& tsdf_layer() const { return layers_.get<TsdfLayer>(); }
+  const CertifiedTsdfLayer& certified_tsdf_layer() const { return layers_.get<CertifiedTsdfLayer>(); }
   /// Getter
   ///@return const OccupancyLayer& occupancy layer
   const OccupancyLayer& occupancy_layer() const {
@@ -206,6 +207,7 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const EsdfLayer& ESDF layer
   const EsdfLayer& esdf_layer() const { return layers_.get<EsdfLayer>(); }
+  const CertifiedEsdfLayer& certified_esdf_layer() const { return layers_.get<CertifiedEsdfLayer>(); }
   /// Getter
   ///@return const MeshLayer& Mesh layer
   const MeshLayer& mesh_layer() const { return layers_.get<MeshLayer>(); }
@@ -226,6 +228,7 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return EsdfLayer& ESDF layer
   EsdfLayer& esdf_layer() { return *layers_.getPtr<EsdfLayer>(); }
+  CertifiedEsdfLayer& certified_esdf_layer() { return *layers_.getPtr<CertifiedEsdfLayer>(); }
   /// Getter
   ///@return MeshLayer& Mesh layer
   MeshLayer& mesh_layer() { return *layers_.getPtr<MeshLayer>(); }
