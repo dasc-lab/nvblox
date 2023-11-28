@@ -73,13 +73,10 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
 void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
                                   const float eps_t) {
   // Call the integrator.
-  // TODO(rgg): determine if this actuallly does need to be synchronous, or if
-  // we need to remember camera positions?
   if (!certified_mapping_enabled) {
     LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
     return;
   }
-  float decrement = eps_t;  // TODO(rgg): calculate this based on eps_R, eps_t.
   Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
   // Unfortunate cast here so we don't have to template the integrator.
   // Relies on certified TSDF voxels being identical to TSDF voxels.
@@ -88,6 +85,10 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
       reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()), T_L_C,
       eps_R, eps_t, voxel_size_m_, t_delta);
   prev_T_L_C_ = T_L_C;
+  // Add all blocks to the update queue, as they will all have been deflated.
+  const std::vector<Index3D> all_blocks =
+      layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
+  certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
 }
 
 void Mapper::integrateLidarDepth(const DepthImage& depth_frame,
@@ -182,6 +183,7 @@ std::vector<Index3D> Mapper::updateEsdf() {
   }
   // Mark blocks as updated
   esdf_blocks_to_update_.clear();
+  certified_esdf_blocks_to_update_.clear();
 
   return esdf_blocks_to_update_vector;
 }
@@ -200,6 +202,13 @@ void Mapper::generateEsdf() {
         layers_.get<OccupancyLayer>(),
         layers_.get<OccupancyLayer>().getAllBlockIndices(),
         layers_.getPtr<EsdfLayer>());
+  }
+
+  if (certified_mapping_enabled) {
+    certified_esdf_integrator_.integrateBlocks(
+        layers_.get<CertifiedTsdfLayer>(),
+        layers_.get<CertifiedTsdfLayer>().getAllBlockIndices(),
+        layers_.getPtr<CertifiedEsdfLayer>());
   }
 }
 
@@ -249,9 +258,11 @@ std::vector<Index3D> Mapper::clearOutsideRadius(const Vector3f& center,
     esdf_blocks_to_update_.erase(idx);
   }
   layers_.getPtr<TsdfLayer>()->clearBlocks(block_indices_for_deletion);
+  // TODO(rgg): consider certified layer separately?
   layers_.getPtr<CertifiedTsdfLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<ColorLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<EsdfLayer>()->clearBlocks(block_indices_for_deletion);
+  layers_.getPtr<CertifiedEsdfLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<MeshLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<OccupancyLayer>()->clearBlocks(block_indices_for_deletion);
   return block_indices_for_deletion;
@@ -263,6 +274,15 @@ void Mapper::markUnobservedTsdfFreeInsideRadius(const Vector3f& center,
   std::vector<Index3D> updated_blocks;
   tsdf_integrator_.markUnobservedFreeInsideRadius(
       center, radius, layers_.getPtr<TsdfLayer>(), &updated_blocks);
+  if (certified_mapping_enabled) {
+    std::vector<Index3D> cert_updated_blocks;
+    certified_tsdf_integrator_.markUnobservedFreeInsideRadius(
+        center, radius,
+        reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
+        &cert_updated_blocks);
+    certified_esdf_blocks_to_update_.insert(cert_updated_blocks.begin(),
+                                            cert_updated_blocks.end());
+  }
 
   mesh_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
   esdf_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());

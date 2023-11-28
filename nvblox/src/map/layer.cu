@@ -23,6 +23,11 @@ template void VoxelBlockLayer<EsdfVoxel>::getVoxelsGPU(
     device_vector<EsdfVoxel>* voxels_ptr,
     device_vector<bool>* success_flags_ptr) const;
 
+template void VoxelBlockLayer<CertifiedEsdfVoxel>::getVoxelsGPU(
+    const device_vector<Vector3f>& positions_L,
+    device_vector<CertifiedEsdfVoxel>* voxels_ptr,
+    device_vector<bool>* success_flags_ptr) const;
+
 template void VoxelBlockLayer<TsdfVoxel>::getVoxelsGPU(
     const device_vector<Vector3f>& positions_L,
     device_vector<TsdfVoxel>* voxels_ptr,
