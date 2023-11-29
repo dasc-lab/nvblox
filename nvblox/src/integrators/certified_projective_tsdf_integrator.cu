@@ -36,26 +36,18 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     const float voxel_to_surface_distance =
         surface_depth_measured - voxel_depth_m;
 
+    // Filter out invalid returns
+    if (voxel_depth_m <= min_distance_m_) {
+      return false;
+    }
     // If we're behind the negative truncation distance, just continue.
     if (voxel_to_surface_distance < -truncation_distance_m_) {
       return false;
     }
 
     // Read CURRENT voxel values (from global GPU memory)
-    // const float voxel_distance_current = voxel_ptr->distance;
+    const float voxel_distance_current = voxel_ptr->distance;
     // Fuse without using the weights to do en exponential moving average.
-    // TODO(rgg): remove the zero for testing
-    float new_distance = voxel_to_surface_distance;
-
-    // Clip
-    if (new_distance > 0.0f) {
-      new_distance = fmin(truncation_distance_m_, new_distance);
-    } else {
-      new_distance = fmax(-truncation_distance_m_, new_distance);
-    }
-
-    // Write NEW voxel values (to global GPU memory)
-    voxel_ptr->distance = new_distance;
 
     // TODO(rgg): examine whether there is a more efficient way to mark observed
     // voxels? Weight update is needed because it also marks the voxel as
@@ -65,16 +57,35 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     const float measurement_weight = weighting_function_(
         surface_depth_measured, voxel_depth_m, truncation_distance_m_);
     // TODO(rgg): remove magic number here
-    voxel_ptr->weight =
+    const float voxel_weight_current = voxel_ptr->weight;
+    const float weight =
         measurement_weight +
         0.09;  // 0.001 is the min threshold for observability, 0.1 for "softly"
-               // observed. Adding ~0.06 here seems like a reasonable
-               // compromise, but it'd be better to design a weighting function
-               // that does what we want it to.
+              //  observed. Adding ~0.06 here seems like a reasonable
+              //  compromise, but it'd be better to design a weighting function
+              //  that does what we want it to.
+    // const float weight =
+        // fmin(measurement_weight + voxel_weight_current, max_weight_);
+    // Fuse
+    float fused_distance = voxel_to_surface_distance;
+    // float fused_distance = (voxel_to_surface_distance * measurement_weight +
+    //                         voxel_distance_current * voxel_weight_current) /
+    //                        (measurement_weight + voxel_weight_current);
+
+    // Clip
+    if (fused_distance > 0.0f) {
+      fused_distance = fmin(truncation_distance_m_, fused_distance);
+    } else {
+      fused_distance = fmax(-truncation_distance_m_, fused_distance);
+    }
+    voxel_ptr->weight = weight;
+    // Write NEW voxel values (to global GPU memory)
+    voxel_ptr->distance = fused_distance;
     return true;
   }
 
   float truncation_distance_m_ = 0.2f;
+  float min_distance_m_ = 0.10f;  // Minimum distance to consider a return to be valid
   float max_weight_ = 100.0f;
 
   // TODO(rgg): update this with a new weighting function type

@@ -175,15 +175,17 @@ std::vector<Index3D> Mapper::updateEsdf() {
                                      layers_.getPtr<EsdfLayer>());
   }
 
+  LOG(INFO) << "Mapper: certified mapping enabled: "
+            << certified_mapping_enabled;
   if (certified_mapping_enabled) {
     certified_esdf_integrator_.integrateBlocks(
         layers_.get<CertifiedTsdfLayer>(),
         certified_esdf_blocks_to_update_vector,
         layers_.getPtr<CertifiedEsdfLayer>());
+    certified_esdf_blocks_to_update_.clear();
   }
   // Mark blocks as updated
   esdf_blocks_to_update_.clear();
-  certified_esdf_blocks_to_update_.clear();
 
   return esdf_blocks_to_update_vector;
 }

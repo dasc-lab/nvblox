@@ -25,11 +25,11 @@ class TsdfDeflationIntegrator {
 
   // Minimum value to decay to. Smaller values allowed if already present in
   // SDF.
-  float min_distance = -0.5;
+  float min_distance = -0.01;
 
   // Whether to deallocate blocks that are fully deflated (could be well within
   // an obstacle)
-  bool deallocate_fully_deflated_blocks = true;
+  bool deallocate_fully_deflated_blocks = false;
 
  private:
   void deflateDistance(TsdfLayer* layer_ptr, float decrement);
