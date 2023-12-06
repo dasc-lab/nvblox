@@ -28,18 +28,19 @@ struct CertifiedUpdateTsdfVoxelFunctor {
   CertifiedUpdateTsdfVoxelFunctor() {}
 
   // Vector3f p_voxel_C, float depth, TsdfVoxel* voxel_ptr
-  __device__ bool operator()(const float surface_depth_measured,
+  __device__ bool operator()(const float surface_depth_measured_,
                              const float voxel_depth_m, TsdfVoxel* voxel_ptr) {
+
+    // Filter out invalid returns
+    float surface_depth_measured = surface_depth_measured_;
+    if (surface_depth_measured_ <= min_distance_m_) {
+      surface_depth_measured = 7.0; // TODO(rgg): make this a parameter
+    }
     // Get the distance between the voxel we're updating the surface.
     // Note that the distance is the projective distance, i.e. the distance
     // along the ray.
     const float voxel_to_surface_distance =
         surface_depth_measured - voxel_depth_m;
-
-    // Filter out invalid returns
-    if (voxel_depth_m <= min_distance_m_) {
-      return false;
-    }
     // If we're behind the negative truncation distance, just continue.
     if (voxel_to_surface_distance < -truncation_distance_m_) {
       return false;
