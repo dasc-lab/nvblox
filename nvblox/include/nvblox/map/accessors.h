@@ -54,9 +54,10 @@ using VoxelCallbackFunction = std::function<void(
     const Index3D& block_index, const Index3D& voxel_index, VoxelType* voxel)>;
 
 /// Function that operates on two voxels
-template <typename VoxelType>
-using TwoVoxelCallbackFunction = std::function<void(
-    const Index3D& block_index, const Index3D& voxel_index, VoxelType* voxel, VoxelType* voxel2)>;
+template <typename VoxelTypeA, typename VoxelTypeB>
+using TwoVoxelCallbackFunction =
+    std::function<void(const Index3D& block_index, const Index3D& voxel_index,
+                       VoxelTypeA* voxel, VoxelTypeB* voxel2)>;
 
 /// Call function on all voxels in a layer (const).
 template <typename VoxelType>

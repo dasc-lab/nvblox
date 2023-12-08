@@ -4,7 +4,7 @@
 
 namespace nvblox {
 
-__global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
+__global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
                                       const float decrement,
                                       const float min_distance,
                                       bool* is_block_fully_deflated) {
@@ -14,7 +14,7 @@ __global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
   }
   __syncthreads();
 
-  TsdfVoxel* voxel_ptr =
+  CertifiedTsdfVoxel* voxel_ptr =
       &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
 
   // Check if voxel is already deflated and skip if so
@@ -28,6 +28,8 @@ __global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
     is_block_fully_deflated[blockIdx.x] = false;
   }
   voxel_ptr->distance -= decrement;
+  constexpr float kWeightDecrementFactor = 0.999;
+  voxel_ptr->weight = fmax(0, (1 - kWeightDecrementFactor) * voxel_ptr->weight);
 }
 
 // @param T_L_C: Transform from local frame to camera frame
@@ -35,7 +37,7 @@ __global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
 // @param eps_t: Uncertainty in translation norm
 // @param voxel_size: Size of a voxel [m]
 // @param t_delta: incremental translation from frame k to k+1
-__global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
+__global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
                                       const Transform* T_L_C, const float eps_R,
                                       const float eps_t, const float voxel_size,
                                       const Vector3f* t_delta,
@@ -47,7 +49,7 @@ __global__ void deflateDistanceKernel(TsdfBlock** block_ptrs,
   }
   __syncthreads();
 
-  TsdfVoxel* voxel_ptr =
+  CertifiedTsdfVoxel* voxel_ptr =
       &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
 
   // Check if voxel is already deflated and skip if so
@@ -80,8 +82,8 @@ TsdfDeflationIntegrator::~TsdfDeflationIntegrator() {
   checkCudaErrors(cudaStreamDestroy(integration_stream_));
 }
 
-void TsdfDeflationIntegrator::deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr,
-                                      float decrement) {
+void TsdfDeflationIntegrator::deflate(
+    VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, float decrement) {
   CHECK_NOTNULL(layer_ptr);
   if (layer_ptr->numAllocatedBlocks() == 0) {
     // Empty layer, nothing to do here.
@@ -93,10 +95,9 @@ void TsdfDeflationIntegrator::deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr,
   }
 }
 
-void TsdfDeflationIntegrator::deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr,
-                                      const Transform& T_L_C, float eps_R,
-                                      float eps_t, float voxel_size,
-                                      const Vector3f& t_delta) {
+void TsdfDeflationIntegrator::deflate(
+    VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, const Transform& T_L_C,
+    float eps_R, float eps_t, float voxel_size, const Vector3f& t_delta) {
   CHECK_NOTNULL(layer_ptr);
   if (layer_ptr->numAllocatedBlocks() == 0) {
     // Empty layer, nothing to do here.
@@ -111,7 +112,7 @@ void TsdfDeflationIntegrator::deflate(VoxelBlockLayer<TsdfVoxel>* layer_ptr,
 // Calls deflation kernel that depends on R, t, point location, and norm ball
 // errors.
 
-void TsdfDeflationIntegrator::deflateDistance(TsdfLayer* layer_ptr,
+void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
                                               const Transform& T_L_C,
                                               float eps_R, float eps_t,
                                               float voxel_size,
@@ -164,7 +165,7 @@ void TsdfDeflationIntegrator::deflateDistance(TsdfLayer* layer_ptr,
   CHECK(block_fully_deflated_host_.size() == num_allocated_blocks);
 }
 
-void TsdfDeflationIntegrator::deflateDistance(TsdfLayer* layer_ptr,
+void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
                                               float decrement) {
   CHECK_NOTNULL(layer_ptr);
   const int num_allocated_blocks = layer_ptr->numAllocatedBlocks();
@@ -208,7 +209,7 @@ void TsdfDeflationIntegrator::deflateDistance(TsdfLayer* layer_ptr,
 }
 
 void TsdfDeflationIntegrator::deallocateFullyDeflatedBlocks(
-    TsdfLayer* layer_ptr) {
+    CertifiedTsdfLayer* layer_ptr) {
   const int num_allocated_blocks = layer_ptr->numAllocatedBlocks();
 
   // Get the block indices on host

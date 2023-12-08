@@ -27,10 +27,10 @@ namespace nvblox {
 struct CertifiedUpdateTsdfVoxelFunctor {
   CertifiedUpdateTsdfVoxelFunctor() {}
 
-  // Vector3f p_voxel_C, float depth, TsdfVoxel* voxel_ptr
+  // Vector3f p_voxel_C, float depth, CertifiedTsdfVoxel* voxel_ptr
   __device__ bool operator()(const float surface_depth_measured_,
-                             const float voxel_depth_m, TsdfVoxel* voxel_ptr) {
-
+                             const float voxel_depth_m,
+                             CertifiedTsdfVoxel* voxel_ptr) {
     // Filter out invalid returns
     float surface_depth_measured = surface_depth_measured_;
     if (surface_depth_measured_ <= min_distance_m_) {
@@ -59,19 +59,21 @@ struct CertifiedUpdateTsdfVoxelFunctor {
         surface_depth_measured, voxel_depth_m, truncation_distance_m_);
     // TODO(rgg): remove magic number here
     const float voxel_weight_current = voxel_ptr->weight;
-    const float weight =
-        measurement_weight +
-        0.09;  // 0.001 is the min threshold for observability, 0.1 for "softly"
-              //  observed. Adding ~0.06 here seems like a reasonable
-              //  compromise, but it'd be better to design a weighting function
-              //  that does what we want it to.
     // const float weight =
-        // fmin(measurement_weight + voxel_weight_current, max_weight_);
+    //     measurement_weight +
+    //     0.09;  // 0.001 is the min threshold for observability, 0.1 for
+    //     "softly"
+    //           //  observed. Adding ~0.06 here seems like a reasonable
+    //           //  compromise, but it'd be better to design a weighting
+    //           function
+    //           //  that does what we want it to.
+    const float weight =
+        fmin(measurement_weight + voxel_weight_current, max_weight_);
     // Fuse
     float fused_distance = voxel_to_surface_distance;
     // float fused_distance = (voxel_to_surface_distance * measurement_weight +
     //                         voxel_distance_current * voxel_weight_current) /
-    //                        (measurement_weight + voxel_weight_current);
+    //                       (measurement_weight + voxel_weight_current);
 
     // Clip
     if (fused_distance > 0.0f) {
@@ -95,7 +97,7 @@ struct CertifiedUpdateTsdfVoxelFunctor {
 };
 
 CertifiedProjectiveTsdfIntegrator::CertifiedProjectiveTsdfIntegrator()
-    : ProjectiveIntegrator<TsdfVoxel>() {
+    : ProjectiveIntegrator<CertifiedTsdfVoxel>() {
   update_functor_host_ptr_ =
       make_unified<CertifiedUpdateTsdfVoxelFunctor>(MemoryType::kHost);
   checkCudaErrors(cudaStreamCreate(&integration_stream_));
@@ -123,12 +125,12 @@ CertifiedProjectiveTsdfIntegrator::getTsdfUpdateFunctorOnDevice(
 
 void CertifiedProjectiveTsdfIntegrator::integrateFrame(
     const DepthImage& depth_frame, const Transform& T_L_C, const Camera& camera,
-    TsdfLayer* layer, std::vector<Index3D>* updated_blocks) {
+    CertifiedTsdfLayer* layer, std::vector<Index3D>* updated_blocks) {
   // Get the update functor on the device
   unified_ptr<CertifiedUpdateTsdfVoxelFunctor> update_functor_device_ptr =
       getTsdfUpdateFunctorOnDevice(layer->voxel_size());
   // Integrate
-  ProjectiveIntegrator<TsdfVoxel>::integrateFrame(
+  ProjectiveIntegrator<CertifiedTsdfVoxel>::integrateFrame(
       depth_frame, T_L_C, camera,
       update_functor_host_ptr_.clone(MemoryType::kDevice).get(), layer,
       updated_blocks);
@@ -136,12 +138,12 @@ void CertifiedProjectiveTsdfIntegrator::integrateFrame(
 
 void CertifiedProjectiveTsdfIntegrator::integrateFrame(
     const DepthImage& depth_frame, const Transform& T_L_C, const Lidar& lidar,
-    TsdfLayer* layer, std::vector<Index3D>* updated_blocks) {
+    CertifiedTsdfLayer* layer, std::vector<Index3D>* updated_blocks) {
   // Get the update functor on the device
   unified_ptr<CertifiedUpdateTsdfVoxelFunctor> update_functor_device_ptr =
       getTsdfUpdateFunctorOnDevice(layer->voxel_size());
   // Integrate
-  ProjectiveIntegrator<TsdfVoxel>::integrateFrame(
+  ProjectiveIntegrator<CertifiedTsdfVoxel>::integrateFrame(
       depth_frame, T_L_C, lidar, update_functor_device_ptr.get(), layer,
       updated_blocks);
 }
@@ -192,11 +194,12 @@ std::string CertifiedProjectiveTsdfIntegrator::getIntegratorName() const {
 // Call with:
 // - One threadBlock per VoxelBlock
 // - 8x8x8 threads per threadBlock
-__global__ void setUnobservedVoxelsCertKernel(const TsdfVoxel voxel_value,
-                                              TsdfBlock** tsdf_block_ptrs) {
+__global__ void setUnobservedVoxelsCertKernel(
+    const CertifiedTsdfVoxel voxel_value,
+    CertifiedTsdfBlock** tsdf_block_ptrs) {
   // Get the voxel addressed by this thread.
-  TsdfBlock* tsdf_block = tsdf_block_ptrs[blockIdx.x];
-  TsdfVoxel* tsdf_voxel =
+  CertifiedTsdfBlock* tsdf_block = tsdf_block_ptrs[blockIdx.x];
+  CertifiedTsdfVoxel* tsdf_voxel =
       &tsdf_block->voxels[threadIdx.z][threadIdx.y][threadIdx.x];
   // If voxel not observed set it to the constant value input to the kernel.
   // TODO(rgg): examine whether there is a more efficient way to mark observed
@@ -208,7 +211,7 @@ __global__ void setUnobservedVoxelsCertKernel(const TsdfVoxel voxel_value,
 }
 
 void CertifiedProjectiveTsdfIntegrator::markUnobservedFreeInsideRadius(
-    const Vector3f& center, float radius, TsdfLayer* layer,
+    const Vector3f& center, float radius, CertifiedTsdfLayer* layer,
     std::vector<Index3D>* updated_blocks_ptr) {
   CHECK_NOTNULL(layer);
   CHECK_GT(radius, 0.0f);
@@ -226,20 +229,21 @@ void CertifiedProjectiveTsdfIntegrator::markUnobservedFreeInsideRadius(
       blocks_inside_radius.begin(), blocks_inside_radius.end(),
       [layer](const Index3D& idx) { layer->allocateBlockAtIndex(idx); });
 
-  // TsdfBlock pointers to GPU
-  const std::vector<TsdfBlock*> block_ptrs_host =
+  // CertifiedTsdfBlock pointers to GPU
+  const std::vector<CertifiedTsdfBlock*> block_ptrs_host =
       getBlockPtrsFromIndices(blocks_inside_radius, layer);
-  device_vector<TsdfBlock*> block_ptrs_device(block_ptrs_host);
+  device_vector<CertifiedTsdfBlock*> block_ptrs_device(block_ptrs_host);
 
   // The value given to "observed" voxels
   constexpr float kSlightlyObservedVoxelWeight = 0.1;
-  const TsdfVoxel slightly_observed_tsdf_voxel{
+  const CertifiedTsdfVoxel slightly_observed_tsdf_voxel{
       .distance = get_truncation_distance_m(layer->voxel_size()),
-      .weight = kSlightlyObservedVoxelWeight};
+      .weight = kSlightlyObservedVoxelWeight,
+      .correction = 0.0};
 
   // Kernel launch
   const int num_thread_blocks = block_ptrs_device.size();
-  constexpr int kVoxelsPerSide = TsdfBlock::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = CertifiedTsdfBlock::kVoxelsPerSide;
   const dim3 num_threads_per_block(kVoxelsPerSide, kVoxelsPerSide,
                                    kVoxelsPerSide);
   setUnobservedVoxelsCertKernel<<<num_thread_blocks, num_threads_per_block, 0,

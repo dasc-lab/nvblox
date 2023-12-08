@@ -36,6 +36,10 @@ struct CertifiedTsdfVoxel {
   float distance = 0.0f;
   /// How many observations/how confident we are in this observation.
   float weight = 0.0f;
+  // Certification Correction
+  float correction = 0.0f;  // the correction applied by the deflation
+                            // integrator due to imperfect state estimate
+  // best_estimate_of_distance - correction = distance
 };
 
 /// Voxels that stores the distance and full direction to the nearest surface.

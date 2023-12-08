@@ -55,8 +55,7 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
     if (certified_mapping_enabled) {
       std::vector<Index3D> certified_updated_blocks;
       certified_tsdf_integrator_.integrateFrame(
-          depth_frame, T_L_C, camera,
-          reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
+          depth_frame, T_L_C, camera, layers_.getPtr<CertifiedTsdfLayer>(),
           &certified_updated_blocks);
       certified_esdf_blocks_to_update_.insert(certified_updated_blocks.begin(),
                                               certified_updated_blocks.end());
@@ -81,9 +80,9 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
   // Unfortunate cast here so we don't have to template the integrator.
   // Relies on certified TSDF voxels being identical to TSDF voxels.
   // TODO(rgg): fix this.
-  tsdf_deflation_integrator_.deflate(
-      reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()), T_L_C,
-      eps_R, eps_t, voxel_size_m_, t_delta);
+  tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
+                                     T_L_C, eps_R, eps_t, voxel_size_m_,
+                                     t_delta);
   prev_T_L_C_ = T_L_C;
   // Add all blocks to the update queue, as they will all have been deflated.
   const std::vector<Index3D> all_blocks =
@@ -279,8 +278,7 @@ void Mapper::markUnobservedTsdfFreeInsideRadius(const Vector3f& center,
   if (certified_mapping_enabled) {
     std::vector<Index3D> cert_updated_blocks;
     certified_tsdf_integrator_.markUnobservedFreeInsideRadius(
-        center, radius,
-        reinterpret_cast<TsdfLayer*>(layers_.getPtr<CertifiedTsdfLayer>()),
+        center, radius, layers_.getPtr<CertifiedTsdfLayer>(),
         &cert_updated_blocks);
     certified_esdf_blocks_to_update_.insert(cert_updated_blocks.begin(),
                                             cert_updated_blocks.end());

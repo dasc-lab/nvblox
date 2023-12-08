@@ -124,20 +124,23 @@ void callFunctionOnAllVoxels(BlockLayer<VoxelBlock<VoxelType>>* layer,
 // Version that operates on two layers.
 // Gets the voxel from the first layer and the corresponding voxel from the
 // second layer. Requires blocks to be allocated in both layers.
-template <typename VoxelType>
-void callFunctionOnAllVoxels(BlockLayer<VoxelBlock<VoxelType>>& layer,
-                             BlockLayer<VoxelBlock<VoxelType>>& layer2,
-                             TwoVoxelCallbackFunction<VoxelType> callback) {
+template <typename VoxelTypeA, typename VoxelTypeB>
+void callFunctionOnAllVoxels(
+    BlockLayer<VoxelBlock<VoxelTypeA>>& layer,
+    BlockLayer<VoxelBlock<VoxelTypeB>>& layer2,
+    TwoVoxelCallbackFunction<VoxelTypeA, VoxelTypeB> callback) {
   std::vector<Index3D> block_indices = layer.getAllBlockIndices();
 
-  constexpr int kVoxelsPerSide = VoxelBlock<VoxelType>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<VoxelTypeA>::
+      kVoxelsPerSide;  // DEV: THIS IS BAD. but should be ok since all the
+                       // layers should have the same voxel per side
 
   // Iterate over all the blocks:
   for (const Index3D& block_index : block_indices) {
     Index3D voxel_index;
-    typename VoxelBlock<VoxelType>::Ptr block =
+    typename VoxelBlock<VoxelTypeA>::Ptr block =
         layer.getBlockAtIndex(block_index);
-    typename VoxelBlock<VoxelType>::Ptr block2 =
+    typename VoxelBlock<VoxelTypeB>::Ptr block2 =
         layer2.getBlockAtIndex(block_index);
     if (!block || !block2) {
       continue;
@@ -150,10 +153,11 @@ void callFunctionOnAllVoxels(BlockLayer<VoxelBlock<VoxelType>>& layer,
         for (voxel_index.z() = 0; voxel_index.z() < kVoxelsPerSide;
              voxel_index.z()++) {
           // Get the voxel and call the callback on it:
-          VoxelType* voxel =
+          VoxelTypeA* voxel =
               &block->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
-          VoxelType* voxel2 =
-              &block2->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
+          VoxelTypeB* voxel2 =
+              &block2
+                   ->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
           callback(block_index, voxel_index, voxel, voxel2);
         }
       }

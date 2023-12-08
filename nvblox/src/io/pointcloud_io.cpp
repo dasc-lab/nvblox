@@ -30,6 +30,19 @@ bool outputVoxelLayerToPly(const TsdfLayer& layer,
   return outputVoxelLayerToPly<TsdfVoxel>(layer, filename, lambda);
 }
 
+/// Specializations for the TSDF type.
+template <>
+bool outputVoxelLayerToPly(const CertifiedTsdfLayer& layer,
+                           const std::string& filename) {
+  constexpr float kMinWeight = 0.1f;
+  auto lambda = [&kMinWeight](const CertifiedTsdfVoxel* voxel,
+                              float* distance) -> bool {
+    *distance = voxel->distance;
+    return voxel->weight > kMinWeight;
+  };
+  return outputVoxelLayerToPly<CertifiedTsdfVoxel>(layer, filename, lambda);
+}
+
 /// Specialization for the occupancy type.
 template <>
 bool outputVoxelLayerToPly(const OccupancyLayer& layer,

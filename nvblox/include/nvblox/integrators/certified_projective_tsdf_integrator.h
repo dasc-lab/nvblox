@@ -42,7 +42,8 @@ struct CertifiedUpdateTsdfVoxelFunctor;
 ///
 /// TODO(rgg): resolve CUDA memory access error when this inherits from ProjectiveTsdfIntegrator.
 /// It would be cleaner to inherit.
-class CertifiedProjectiveTsdfIntegrator : public ProjectiveIntegrator<TsdfVoxel> {
+class CertifiedProjectiveTsdfIntegrator
+    : public ProjectiveIntegrator<CertifiedTsdfVoxel> {
  public:
   CertifiedProjectiveTsdfIntegrator();
   virtual ~CertifiedProjectiveTsdfIntegrator();
@@ -57,7 +58,7 @@ class CertifiedProjectiveTsdfIntegrator : public ProjectiveIntegrator<TsdfVoxel>
   /// @param updated_blocks Optional pointer to a vector which will contain the
   /// 3D indices of blocks affected by the integration.
   void integrateFrame(const DepthImage& depth_frame, const Transform& T_L_C,
-                      const Camera& camera, TsdfLayer* layer,
+                      const Camera& camera, CertifiedTsdfLayer* layer,
                       std::vector<Index3D>* updated_blocks = nullptr);
 
   /// Integrates a depth image in to the passed TSDF layer.
@@ -70,7 +71,7 @@ class CertifiedProjectiveTsdfIntegrator : public ProjectiveIntegrator<TsdfVoxel>
   /// @param updated_blocks Optional pointer to a vector which will contain the
   /// 3D indices of blocks affected by the integration.
   void integrateFrame(const DepthImage& depth_frame, const Transform& T_L_C,
-                      const Lidar& lidar, TsdfLayer* layer,
+                      const Lidar& lidar, CertifiedTsdfLayer* layer,
                       std::vector<Index3D>* updated_blocks = nullptr);
 
   /// For voxels with a radius, allocate memory and give a small weight and
@@ -82,7 +83,7 @@ class CertifiedProjectiveTsdfIntegrator : public ProjectiveIntegrator<TsdfVoxel>
   /// @param updated_blocks Optional pointer to a list of blocks affected by the
   /// update.
   void markUnobservedFreeInsideRadius(
-      const Vector3f& center, float radius, TsdfLayer* layer,
+      const Vector3f& center, float radius, CertifiedTsdfLayer* layer,
       std::vector<Index3D>* updated_blocks = nullptr);
 
   /// A parameter getter
@@ -143,8 +144,7 @@ class CertifiedProjectiveTsdfIntegrator : public ProjectiveIntegrator<TsdfVoxel>
   unified_ptr<CertifiedUpdateTsdfVoxelFunctor> getTsdfUpdateFunctorOnDevice(
       float voxel_size);
 
-
-  // The maximum weight that a TsdfVoxel can accumulate.
+  // The maximum weight that a CertifiedTsdfVoxel can accumulate.
   float max_weight_ = 100.0f;
 
   // The type of the weighting function to be applied to observations

@@ -59,7 +59,8 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   scene.generateLayerFromScene(kTruncationDistanceMeters, &gt_layer);
 
   // Create an integrator.
-  CertifiedProjectiveTsdfIntegrator integrator;
+  ProjectiveTsdfIntegrator integrator;
+  CertifiedProjectiveTsdfIntegrator cert_integrator;
   TsdfDeflationIntegrator deflation_integrator;
   deflation_integrator.min_distance = min_value;
   integrator.truncation_distance_vox(kTruncationDistanceVox);
@@ -74,7 +75,8 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
                          MemoryType::kUnified);
 
   TsdfLayer layer_gpu(layer_.voxel_size(), MemoryType::kUnified);
-  TsdfLayer layer_gpu_deflated(layer_.voxel_size(), MemoryType::kUnified);
+  CertifiedTsdfLayer layer_gpu_deflated(layer_.voxel_size(),
+                                        MemoryType::kUnified);
 
   for (size_t i = 0; i < kNumTrajectoryPoints; i++) {
     const float theta = radians_increment * i;
@@ -99,7 +101,8 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
     integrator.integrateFrame(depth_frame, T_S_C, camera_, &layer_gpu);
 
     // Update the deflated TSDF.
-    integrator.integrateFrame(depth_frame, T_S_C, camera_, &layer_gpu_deflated);
+    cert_integrator.integrateFrame(depth_frame, T_S_C, camera_,
+                                   &layer_gpu_deflated);
     deflation_integrator.deflate(&layer_gpu_deflated, decrement);
   }
 
@@ -129,29 +132,30 @@ TEST_F(TsdfDeflationIntegratorTest, SphereSceneTest) {
   int num_deflated_voxels = 0;
   int num_larger_in_deflated = 0;
   int num_significantly_larger_in_deflated = 0;
-  auto lambda_compare =
-      [&](const Index3D& block_index, const Index3D& voxel_index,
-          const TsdfVoxel* voxel_orig, const TsdfVoxel* voxel_deflated) {
-        // Check the deflated TSDF has smaller distances than the original.
-        float deflation = voxel_orig->distance - voxel_deflated->distance;
-        if (deflation < -kDistanceErrorTolerance) {
-          num_significantly_larger_in_deflated++;
-        }
-        if (deflation < 0) {
-          num_larger_in_deflated++;
-        }
-        if (deflation < min_deflation) {
-          min_deflation = deflation;
-        }
-        if (deflation > max_deflation) {
-          max_deflation = deflation;
-        }
-        total_deflation += deflation;
-        num_deflated_voxels++;
-      };
+  auto lambda_compare = [&](const Index3D& block_index,
+                            const Index3D& voxel_index,
+                            const TsdfVoxel* voxel_orig,
+                            const CertifiedTsdfVoxel* voxel_deflated) {
+    // Check the deflated TSDF has smaller distances than the original.
+    float deflation = voxel_orig->distance - voxel_deflated->distance;
+    if (deflation < -kDistanceErrorTolerance) {
+      num_significantly_larger_in_deflated++;
+    }
+    if (deflation < 0) {
+      num_larger_in_deflated++;
+    }
+    if (deflation < min_deflation) {
+      min_deflation = deflation;
+    }
+    if (deflation > max_deflation) {
+      max_deflation = deflation;
+    }
+    total_deflation += deflation;
+    num_deflated_voxels++;
+  };
   callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, lambda);
-  callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, layer_gpu_deflated,
-                                     lambda_compare);
+  callFunctionOnAllVoxels<TsdfVoxel, CertifiedTsdfVoxel>(
+      layer_gpu, layer_gpu_deflated, lambda_compare);
   float average_deflation =
       total_deflation / static_cast<float>(num_deflated_voxels);
   std::cout << "GPU: average deflation: " << average_deflation << std::endl;
@@ -201,7 +205,8 @@ TEST_F(TsdfDeflationIntegratorTest, OdometryAwareSphereSceneTest) {
   scene.generateLayerFromScene(kTruncationDistanceMeters, &gt_layer);
 
   // Create an integrator.
-  CertifiedProjectiveTsdfIntegrator integrator;
+  ProjectiveTsdfIntegrator integrator;
+  CertifiedProjectiveTsdfIntegrator cert_integrator;
   TsdfDeflationIntegrator deflation_integrator;
   deflation_integrator.min_distance = min_value;
   integrator.truncation_distance_vox(kTruncationDistanceVox);
@@ -216,7 +221,8 @@ TEST_F(TsdfDeflationIntegratorTest, OdometryAwareSphereSceneTest) {
                          MemoryType::kUnified);
 
   TsdfLayer layer_gpu(layer_.voxel_size(), MemoryType::kUnified);
-  TsdfLayer layer_gpu_deflated(layer_.voxel_size(), MemoryType::kUnified);
+  CertifiedTsdfLayer layer_gpu_deflated(layer_.voxel_size(),
+                                        MemoryType::kUnified);
 
   const float init_theta = 0.0f;
   Vector3f t_prev(kTrajectoryRadius * std::cos(init_theta),
@@ -244,7 +250,8 @@ TEST_F(TsdfDeflationIntegratorTest, OdometryAwareSphereSceneTest) {
     integrator.integrateFrame(depth_frame, T_S_C, camera_, &layer_gpu);
 
     // Update the deflated TSDF.
-    integrator.integrateFrame(depth_frame, T_S_C, camera_, &layer_gpu_deflated);
+    cert_integrator.integrateFrame(depth_frame, T_S_C, camera_,
+                                   &layer_gpu_deflated);
     // Get translation delta w.r.t. the previous frame from T_S_C
     Vector3f t_delta = T_S_C.translation() - t_prev;
     deflation_integrator.deflate(&layer_gpu_deflated, T_S_C, eps_R, eps_t,
@@ -279,29 +286,30 @@ TEST_F(TsdfDeflationIntegratorTest, OdometryAwareSphereSceneTest) {
   int num_deflated_voxels = 0;
   int num_larger_in_deflated = 0;
   int num_significantly_larger_in_deflated = 0;
-  auto lambda_compare =
-      [&](const Index3D& block_index, const Index3D& voxel_index,
-          const TsdfVoxel* voxel_orig, const TsdfVoxel* voxel_deflated) {
-        // Check the deflated TSDF has smaller distances than the original.
-        float deflation = voxel_orig->distance - voxel_deflated->distance;
-        if (deflation < -kDistanceErrorTolerance) {
-          num_significantly_larger_in_deflated++;
-        }
-        if (deflation < 0) {
-          num_larger_in_deflated++;
-        }
-        if (deflation < min_deflation) {
-          min_deflation = deflation;
-        }
-        if (deflation > max_deflation) {
-          max_deflation = deflation;
-        }
-        total_deflation += deflation;
-        num_deflated_voxels++;
-      };
+  auto lambda_compare = [&](const Index3D& block_index,
+                            const Index3D& voxel_index,
+                            const TsdfVoxel* voxel_orig,
+                            const CertifiedTsdfVoxel* voxel_deflated) {
+    // Check the deflated TSDF has smaller distances than the original.
+    float deflation = voxel_orig->distance - voxel_deflated->distance;
+    if (deflation < -kDistanceErrorTolerance) {
+      num_significantly_larger_in_deflated++;
+    }
+    if (deflation < 0) {
+      num_larger_in_deflated++;
+    }
+    if (deflation < min_deflation) {
+      min_deflation = deflation;
+    }
+    if (deflation > max_deflation) {
+      max_deflation = deflation;
+    }
+    total_deflation += deflation;
+    num_deflated_voxels++;
+  };
   callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, lambda);
-  callFunctionOnAllVoxels<TsdfVoxel>(layer_gpu, layer_gpu_deflated,
-                                     lambda_compare);
+  callFunctionOnAllVoxels<TsdfVoxel, CertifiedTsdfVoxel>(
+      layer_gpu, layer_gpu_deflated, lambda_compare);
   float average_deflation =
       total_deflation / static_cast<float>(num_deflated_voxels);
   std::cout << "GPU: average deflation: " << average_deflation << std::endl;
