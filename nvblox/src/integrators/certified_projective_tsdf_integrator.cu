@@ -28,17 +28,15 @@ struct CertifiedUpdateTsdfVoxelFunctor {
   CertifiedUpdateTsdfVoxelFunctor() {}
 
   // Vector3f p_voxel_C, float depth, CertifiedTsdfVoxel* voxel_ptr
-  __device__ bool operator()(const float surface_depth_measured_,
+  __device__ bool operator()(const float surface_depth_measured,
                              const float voxel_depth_m,
                              CertifiedTsdfVoxel* voxel_ptr) {
     // TODO(dev): check if we still need to reject nans?
     // Filter out invalid returns
-    float surface_depth_measured = surface_depth_measured_;
-    assert(surface_depth_measured_ < 0);  // THIS SHOULD NOT HAPPEN
-    if (surface_depth_measured_ <= min_distance_m_) {
-      // surface_depth_measured = 7.0; // TODO(rgg): make this a parameter
-      return false;
-    }
+    // if (surface_depth_measured_ <= min_distance_m_) {
+    //   surface_depth_measured = 7.0; // TODO(rgg): make this a parameter
+    //   // return false;
+    // }
     // Get the distance between the voxel we're updating the surface.
     // Note that the distance is the projective distance, i.e. the distance
     // along the ray.
