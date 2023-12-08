@@ -218,6 +218,9 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return TsdfLayer& TSDF layer
   TsdfLayer& tsdf_layer() { return *layers_.getPtr<TsdfLayer>(); }
+  CertifiedTsdfLayer& certified_tsdf_layer() {
+    return *layers_.getPtr<CertifiedTsdfLayer>();
+  }
   ///@return OccupancyLayer& occupancy layer
   OccupancyLayer& occupancy_layer() {
     return *layers_.getPtr<OccupancyLayer>();
@@ -274,11 +277,17 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const EsdfIntegrator& ESDF integrator
   const EsdfIntegrator& esdf_integrator() const { return esdf_integrator_; }
+  const CertifiedEsdfIntegrator& certified_esdf_integrator() const {
+    return certified_esdf_integrator_;
+  }
 
   /// Getter
   ///@return ProjectiveTsdfIntegrator& TSDF integrator used for
   ///        depth/rgbd frame integration.
   ProjectiveTsdfIntegrator& tsdf_integrator() { return tsdf_integrator_; }
+  CertifiedProjectiveTsdfIntegrator& certified_tsdf_integrator() {
+    return certified_tsdf_integrator_;
+  }
   /// Getter
   ///@return ProjectiveOccupancyIntegrator& occupancy integrator used for
   ///        depth/rgbd frame integration.
@@ -312,6 +321,9 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return EsdfIntegrator& ESDF integrator
   EsdfIntegrator& esdf_integrator() { return esdf_integrator_; }
+  CertifiedEsdfIntegrator& certified_esdf_integrator() {
+    return certified_esdf_integrator_;
+  }
   /// Getter
   /// @return The voxel size in meters
   float voxel_size_m() const { return voxel_size_m_; };

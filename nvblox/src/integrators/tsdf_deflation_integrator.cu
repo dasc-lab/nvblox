@@ -4,34 +4,6 @@
 
 namespace nvblox {
 
-__global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
-                                      const float decrement,
-                                      const float min_distance,
-                                      bool* is_block_fully_deflated) {
-  // A single thread in each block initializes the output to true
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    is_block_fully_deflated[blockIdx.x] = true;
-  }
-  __syncthreads();
-
-  CertifiedTsdfVoxel* voxel_ptr =
-      &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
-
-  // Check if voxel is already deflated and skip if so
-  if (voxel_ptr->distance - decrement < min_distance) {
-    return;
-  } else {
-    // If one voxel in a block is not deflated beyond the limit,
-    // the block is not fully deflated.
-    // NOTE: There could be more than one thread writing this value, but because
-    // all of them write false it is no issue.
-    is_block_fully_deflated[blockIdx.x] = false;
-  }
-  voxel_ptr->distance -= decrement;
-  constexpr float kWeightDecrementFactor = 0.999;
-  voxel_ptr->weight = fmax(0, (1 - kWeightDecrementFactor) * voxel_ptr->weight);
-}
-
 // @param T_L_C: Transform from local frame to camera frame
 // @param eps_R: Uncertainty in rotation Frobenius norm
 // @param eps_t: Uncertainty in translation norm
@@ -62,15 +34,70 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
     // all of them write false it is no issue.
     is_block_fully_deflated[blockIdx.x] = false;
   }
-  // Theorem 3
+
+  // check that the certified tsdf voxel has been observed and updated before
+  // actually deflating the voxel's value
+  constexpr float kSlightlyObservedVoxelWeight =
+      0.01;  // TODO(dev): get the parameter from other places
+  if (voxel_ptr->weight < kSlightlyObservedVoxelWeight) {
+    return;  // I dont want the ESDF to propagate from this voxel.
+  }
+
+  // Theorem 1
   // Get xyz coordinates of voxel in global frame
   // Assume origin at 0,0,0
   // TODO(rgg): Check whether this should be changed to get center of voxel, or
   // worst case?
   Vector3f p = Vector3f(threadIdx.x, threadIdx.y, threadIdx.z) * voxel_size;
   // d_new = d - eps_R*norm(R_M^Bk+1*p + t_m^Bk+1 - t_Bk^Bk+1) - eps_t
-  float decrement = eps_R * (*T_L_C * p - *t_delta).norm() + eps_t;
+  float decrement = eps_R * (*T_L_C * p - *t_delta).norm() +
+                    eps_t;  // TODO(dev): check if its -t_delta or + t_delta
   voxel_ptr->distance -= decrement;
+  voxel_ptr->correction +=
+      decrement;  // therefore the estimated distance isnt affected
+}
+
+__global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
+                                      const float decrement,
+                                      const float min_distance,
+                                      bool* is_block_fully_deflated) {
+  // A single thread in each block initializes the output to true
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    is_block_fully_deflated[blockIdx.x] = true;
+  }
+  __syncthreads();
+
+  /// !!!!!
+  /// WARNING DEV:: NOT BEING USED!!!!!!!!!!!
+  /// !!!!!
+  assert(0);  //  SHOULD CAUSE THINGS TO BREAK
+
+  CertifiedTsdfVoxel* voxel_ptr =
+      &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
+
+  // Check if voxel is already deflated and skip if so
+  if (voxel_ptr->distance - decrement < min_distance) {
+    return;
+  } else {
+    // If one voxel in a block is not deflated beyond the limit,
+    // the block is not fully deflated.
+    // NOTE: There could be more than one thread writing this value, but because
+    // all of them write false it is no issue.
+    is_block_fully_deflated[blockIdx.x] = false;
+  }
+  voxel_ptr->distance -= decrement;
+  // Dev: increase correction, decrement the value so the "estimated distance"
+  // is still the same.
+  voxel_ptr->correction += decrement;
+
+  /// !!!!!
+  /// WARNING DEV:: NOT BEING USED!!!!!!!!!!!
+  /// !!!!!
+
+  // Dev: try weird things with the weights. kinda works. but not really.
+  // constexpr float kWeightDecrementFactor = 0.999;
+  // voxel_ptr->weight = fmax(0, (1 - kWeightDecrementFactor) *
+  // voxel_ptr->weight);
 }
 
 TsdfDeflationIntegrator::TsdfDeflationIntegrator() {

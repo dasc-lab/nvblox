@@ -31,10 +31,13 @@ struct CertifiedUpdateTsdfVoxelFunctor {
   __device__ bool operator()(const float surface_depth_measured_,
                              const float voxel_depth_m,
                              CertifiedTsdfVoxel* voxel_ptr) {
+    // TODO(dev): check if we still need to reject nans?
     // Filter out invalid returns
     float surface_depth_measured = surface_depth_measured_;
+    assert(surface_depth_measured_ < 0);  // THIS SHOULD NOT HAPPEN
     if (surface_depth_measured_ <= min_distance_m_) {
-      surface_depth_measured = 7.0; // TODO(rgg): make this a parameter
+      // surface_depth_measured = 7.0; // TODO(rgg): make this a parameter
+      return false;
     }
     // Get the distance between the voxel we're updating the surface.
     // Note that the distance is the projective distance, i.e. the distance
@@ -47,7 +50,10 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     }
 
     // Read CURRENT voxel values (from global GPU memory)
-    const float voxel_distance_current = voxel_ptr->distance;
+    const float voxel_distance_current =
+        voxel_ptr->distance +
+        voxel_ptr->correction;  // Dev: "current estimated distance" -
+                                // "correction" = "distance"
     // Fuse without using the weights to do en exponential moving average.
 
     // TODO(rgg): examine whether there is a more efficient way to mark observed
@@ -70,10 +76,10 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     const float weight =
         fmin(measurement_weight + voxel_weight_current, max_weight_);
     // Fuse
-    float fused_distance = voxel_to_surface_distance;
-    // float fused_distance = (voxel_to_surface_distance * measurement_weight +
-    //                         voxel_distance_current * voxel_weight_current) /
-    //                       (measurement_weight + voxel_weight_current);
+    // float fused_distance = voxel_to_surface_distance;
+    float fused_distance = (voxel_to_surface_distance * measurement_weight +
+                            voxel_distance_current * voxel_weight_current) /
+                           (measurement_weight + voxel_weight_current);
 
     // Clip
     if (fused_distance > 0.0f) {
@@ -84,6 +90,9 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     voxel_ptr->weight = weight;
     // Write NEW voxel values (to global GPU memory)
     voxel_ptr->distance = fused_distance;
+
+    // since this voxel was reobserved, clear the correction
+    voxel_ptr->correction = 0.0f;
     return true;
   }
 
