@@ -61,8 +61,9 @@ struct CertifiedUpdateTsdfVoxelFunctor {
     // Get the weight of this observation from the sensor model.
     const float measurement_weight = weighting_function_(
         surface_depth_measured, voxel_depth_m, truncation_distance_m_);
-    // TODO(rgg): remove magic number here
-    const float voxel_weight_current = voxel_ptr->weight;
+    // TODO(rgg): remove magic number here. We want to heavily
+    // weight new obersvations.
+    const float voxel_weight_current = voxel_ptr->weight*0.1;
     // const float weight =
     //     measurement_weight +
     //     0.09;  // 0.001 is the min threshold for observability, 0.1 for
