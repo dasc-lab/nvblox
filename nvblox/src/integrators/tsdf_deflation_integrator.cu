@@ -55,6 +55,12 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   voxel_ptr->distance -= decrement;
   voxel_ptr->correction +=
       decrement;  // therefore the estimated distance isnt affected
+  // If the decrement has completely deflated the voxel,
+  // reset the weight so that we can re-observe it and not
+  // treat it as "known obstacle" when it is really just unknown.
+  if (voxel_ptr->distance <= min_distance) {
+    voxel_ptr->weight = 0;
+  }
 }
 
 __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
@@ -70,7 +76,6 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   /// !!!!!
   /// WARNING DEV:: NOT BEING USED!!!!!!!!!!!
   /// !!!!!
-  assert(0);  //  SHOULD CAUSE THINGS TO BREAK
 
   CertifiedTsdfVoxel* voxel_ptr =
       &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
