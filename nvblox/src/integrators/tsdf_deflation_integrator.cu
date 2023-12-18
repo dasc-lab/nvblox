@@ -26,6 +26,7 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
 
   // Check if voxel is already deflated and skip if so
   if (voxel_ptr->distance < min_distance) {
+    voxel_ptr->weight = 0.0f;  // Ensure weight is set to 0 even if there was a race condition earlier
     return;
   } else {
     // If one voxel in a block is not deflated beyond the limit,
@@ -35,12 +36,15 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
     is_block_fully_deflated[blockIdx.x] = false;
   }
 
-  // check that the certified tsdf voxel has been observed and updated before
+  // Check that the certified tsdf voxel has been observed and updated before
   // actually deflating the voxel's value
+  // This is just for kernel performance, as we don't do anything with the information
+  // of whether or not the voxel has been updated for now.
+  // TODO(rgg): don't perform ESDF update on voxels that have not been observed / have been fully deflated.
   constexpr float kSlightlyObservedVoxelWeight =
       0.01;  // TODO(dev): get the parameter from other places
   if (voxel_ptr->weight < kSlightlyObservedVoxelWeight) {
-    return;  // I dont want the ESDF to propagate from this voxel.
+    return;
   }
 
   // Theorem 1
@@ -59,7 +63,7 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   // reset the weight so that we can re-observe it and not
   // treat it as "known obstacle" when it is really just unknown.
   if (voxel_ptr->distance <= min_distance) {
-    voxel_ptr->weight = 0;
+    voxel_ptr->weight = 0.0f;
   }
 }
 
