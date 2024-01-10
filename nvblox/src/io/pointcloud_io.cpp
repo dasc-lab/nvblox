@@ -71,5 +71,20 @@ bool outputVoxelLayerToPly(const EsdfLayer& layer,
   return outputVoxelLayerToPly<EsdfVoxel>(layer, filename, lambda);
 }
 
+/// Specialization for the Certified ESDF type.
+template <>
+bool outputVoxelLayerToPly(const CertifiedEsdfLayer& layer,
+                           const std::string& filename) {
+  const float voxel_size = layer.voxel_size();
+  auto lambda = [&voxel_size](const CertifiedEsdfVoxel* voxel, float* distance) -> bool {
+    *distance = voxel_size * std::sqrt(voxel->squared_distance_vox);
+    if (voxel->is_inside) {
+      *distance = -*distance;
+    }
+    return voxel->observed;
+  };
+  return outputVoxelLayerToPly<CertifiedEsdfVoxel>(layer, filename, lambda);
+}
+
 }  // namespace io
 }  // namespace nvblox
