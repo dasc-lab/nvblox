@@ -174,8 +174,6 @@ std::vector<Index3D> Mapper::updateEsdf() {
                                      layers_.getPtr<EsdfLayer>());
   }
 
-  LOG(INFO) << "Mapper: certified mapping enabled: "
-            << certified_mapping_enabled;
   if (certified_mapping_enabled) {
     certified_esdf_integrator_.integrateBlocks(
         layers_.get<CertifiedTsdfLayer>(),
