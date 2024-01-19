@@ -8,13 +8,13 @@ namespace nvblox {
 // @param eps_R: Uncertainty in rotation Frobenius norm
 // @param eps_t: Uncertainty in translation norm
 // @param voxel_size: Size of a voxel [m]
+// @param block_size: Size of a block [m]
 // @param t_delta: incremental translation from frame k to k+1
-__global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
-                                      const Transform* T_L_C, const float eps_R,
-                                      const float eps_t, const float voxel_size,
-                                      const Vector3f* t_delta,
-                                      const float min_distance,
-                                      bool* is_block_fully_deflated) {
+__global__ void deflateDistanceKernel(
+    CertifiedTsdfBlock** block_ptrs, Index3D* block_indices,
+    const Transform* T_L_C, const float eps_R, const float eps_t,
+    const float voxel_size, const float block_size, const Vector3f* t_delta,
+    const float min_distance, bool* is_block_fully_deflated) {
   // A single thread in each block initializes the output to true
   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     is_block_fully_deflated[blockIdx.x] = true;
@@ -22,7 +22,7 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   __syncthreads();
 
   CertifiedTsdfVoxel* voxel_ptr =
-      &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
+      &(block_ptrs[blockIdx.x]->voxels[threadIdx.x][threadIdx.y][threadIdx.z]);
 
   // Check if voxel is already deflated and skip if so
   if (voxel_ptr->distance < min_distance) {
@@ -41,24 +41,27 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   // This is just for kernel performance, as we don't do anything with the information
   // of whether or not the voxel has been updated for now.
   // TODO(rgg): don't perform ESDF update on voxels that have not been observed / have been fully deflated.
-  constexpr float kSlightlyObservedVoxelWeight =
-      0.01;  // TODO(dev): get the parameter from other places
+  constexpr float kSlightlyObservedVoxelWeight = 0.01;
   if (voxel_ptr->weight < kSlightlyObservedVoxelWeight) {
     return;
   }
 
   // Theorem 1
   // Get xyz coordinates of voxel in global frame
-  // Assume origin at 0,0,0
-  // TODO(rgg): Check whether this should be changed to get center of voxel, or
-  // worst case?
-  Vector3f p = Vector3f(threadIdx.x, threadIdx.y, threadIdx.z) * voxel_size;
+  const Index3D block_index = block_indices[blockIdx.x];
+  const Index3D voxel_index(threadIdx.x, threadIdx.y, threadIdx.z);
+  Vector3f p = getCenterPostionFromBlockIndexAndVoxelIndex(
+      block_size, block_index, voxel_index);
+
+  // get the decrement
   // d_new = d - eps_R*norm(R_M^Bk+1*p + t_m^Bk+1 - t_Bk^Bk+1) - eps_t
-  float decrement = eps_R * (*T_L_C * p - *t_delta).norm() +
-                    eps_t;  // TODO(dev): check if its -t_delta or + t_delta
+  float decrement = eps_R * (*T_L_C * p - *t_delta).norm() + eps_t;
+
+  // apply the decrement, but only to the correction, so that the estimated
+  // distance isnt affected
   voxel_ptr->distance -= decrement;
-  voxel_ptr->correction +=
-      decrement;  // therefore the estimated distance isnt affected
+  voxel_ptr->correction += decrement;
+
   // If the decrement has completely deflated the voxel,
   // reset the weight so that we can re-observe it and not
   // treat it as "known obstacle" when it is really just unknown.
@@ -82,7 +85,7 @@ __global__ void deflateDistanceKernel(CertifiedTsdfBlock** block_ptrs,
   /// !!!!!
 
   CertifiedTsdfVoxel* voxel_ptr =
-      &(block_ptrs[blockIdx.x]->voxels[threadIdx.z][threadIdx.y][threadIdx.x]);
+      &(block_ptrs[blockIdx.x]->voxels[threadIdx.x][threadIdx.y][threadIdx.z]);
 
   // Check if voxel is already deflated and skip if so
   if (voxel_ptr->distance - decrement < min_distance) {
@@ -171,6 +174,13 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
   allocated_block_ptrs_host_ = layer_ptr->getAllBlockPointers();
   allocated_block_ptrs_device_ = allocated_block_ptrs_host_;
 
+  // Get the block indices on host and copy them to device
+  allocated_block_indices_host_ = layer_ptr->getAllBlockIndices();
+  allocated_block_indices_device_ = allocated_block_indices_host_;
+
+  // get the block size
+  const float block_size = voxelSizeToBlockSize(voxel_size);
+
   // Kernel call - One ThreadBlock launched per VoxelBlock
   block_fully_deflated_device_.resize(num_allocated_blocks);
   constexpr int kVoxelsPerSide = VoxelBlock<bool>::kVoxelsPerSide;
@@ -185,8 +195,9 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
   cudaMemcpy(d_t_delta, &t_delta, sizeof(Vector3f), cudaMemcpyHostToDevice);
   deflateDistanceKernel<<<num_thread_blocks, kThreadsPerBlock, 0,
                           integration_stream_>>>(
-      allocated_block_ptrs_device_.data(),  // NOLINT
-      d_T_L_C, eps_R, eps_t, voxel_size, d_t_delta, min_distance,
+      allocated_block_ptrs_device_.data(),     // NOLINT
+      allocated_block_indices_device_.data(),  // NOLINT
+      d_T_L_C, eps_R, eps_t, voxel_size, block_size, d_t_delta, min_distance,
       block_fully_deflated_device_.data());  // NOLINT
   cudaStreamSynchronize(integration_stream_);
   checkCudaErrors(cudaPeekAtLastError());
@@ -213,6 +224,8 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
         static_cast<int>(kBufferExpansionFactor * num_allocated_blocks);
     allocated_block_ptrs_host_.reserve(new_size);
     allocated_block_ptrs_device_.reserve(new_size);
+    allocated_block_indices_host_.reserve(new_size);
+    allocated_block_indices_device_.reserve(new_size);
     block_fully_deflated_device_.reserve(new_size);
     block_fully_deflated_host_.reserve(new_size);
   }

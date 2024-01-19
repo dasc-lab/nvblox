@@ -40,6 +40,8 @@ class TsdfDeflationIntegrator {
   // Internal buffers
   host_vector<CertifiedTsdfBlock*> allocated_block_ptrs_host_;
   device_vector<CertifiedTsdfBlock*> allocated_block_ptrs_device_;
+  host_vector<Index3D> allocated_block_indices_host_;
+  device_vector<Index3D> allocated_block_indices_device_;
   device_vector<bool> block_fully_deflated_device_;
   host_vector<bool> block_fully_deflated_host_;
 
