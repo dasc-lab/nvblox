@@ -166,6 +166,8 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
         static_cast<int>(kBufferExpansionFactor * num_allocated_blocks);
     allocated_block_ptrs_host_.reserve(new_size);
     allocated_block_ptrs_device_.reserve(new_size);
+    allocated_block_indices_host_.reserve(new_size);
+    allocated_block_indices_device_.reserve(new_size);
     block_fully_deflated_device_.reserve(new_size);
     block_fully_deflated_host_.reserve(new_size);
   }
