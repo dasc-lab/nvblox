@@ -84,6 +84,16 @@ include(thirdparty/eigen/eigen.cmake)
 message(STATUS "Downloading STDGPU")
 include(thirdparty/stdgpu/stdgpu.cmake)
 
+# Build liegroups as part of this
+message(STATUS "building liegroups")
+include(ExternalProject)
+ExternalProject_Add(liegroups
+    PREFIX ${CMAKE_BINARY_DIR}/thirdparty
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty/liegroups
+    INSTALL_COMMAND cmake --build . --target install  
+    BUILD_ALWAYS 1 # uncomment to force rebuild it 
+)
+
 # Include dem deps
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 find_package(CUDA REQUIRED)

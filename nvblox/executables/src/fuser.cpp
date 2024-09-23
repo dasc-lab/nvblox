@@ -109,6 +109,11 @@ DEFINE_bool(weighting_scheme_inverse_square, false,
 DEFINE_bool(weighting_scheme_inverse_square_dropoff, false,
             "Integration weighting scheme: square + dropoff");
 
+// Odometry error covariance
+DEFINE_double(odometry_error_covariance, 0.0, 
+            "A non-zero value means that the camera trajectory will be perturbed at each frame by a "
+            "random zero-mean gaussian random vector with covariance = Identity * the value provided.");
+ 
 namespace nvblox {
 
 Fuser::Fuser(std::unique_ptr<datasets::RgbdDataLoaderInterface>&& data_loader)
@@ -376,6 +381,17 @@ void Fuser::readCommandLineFlags() {
   CHECK_LT(num_weighting_schemes_requested, 2)
       << "You requested two weighting schemes on the command line. Maximum "
          "one.";
+
+  if (!gflags::GetCommandLineFlagInfoOrDie(
+          "odometry_error_covariance").is_default) {
+    LOG(INFO)
+      << "Command line parameter found: odometry_error_covariance = " 
+      << FLAGS_odometry_error_covariance;
+
+    // set the covariance
+    bool suc = setOdometryErrorCovariance((float)FLAGS_odometry_error_covariance);
+    if (!suc) { throw std::runtime_error("covariance not accepted"); }
+  }
 }
 
 int Fuser::run() {
@@ -473,10 +489,11 @@ bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer timer_file("fuser/file_loading");
   DepthImage depth_frame;
   ColorImage color_frame;
-  Transform T_L_C;
+  Transform T_L_Ck_true; // this is the true transform
+  Transform T_L_Ck;      // this is the estimated transform (due to odometry errors)
   Camera camera;
   const datasets::DataLoadResult load_result =
-      data_loader_->loadNext(&depth_frame, &T_L_C, &camera, &color_frame);
+      data_loader_->loadNext(&depth_frame, &T_L_Ck_true, &camera, &color_frame);
   timer_file.Stop();
 
   if (load_result == datasets::DataLoadResult::kBadFrame) {
@@ -487,16 +504,34 @@ bool Fuser::integrateFrame(const int frame_number) {
     return false;  // Shows over folks
   }
 
+  // Apply perturbations
+  {
+    timing::Timer perturbation_timer("fuser/add_perturbations");
+    // get the additional perturbation for this frame
+    LieGroups::Vector6f tau = LieGroups::randn<float, 6>(odometry_error_cov_);
+    Transform T_pert = Transform(LieGroups::SE3::Exp(tau));
+
+    // compose the errors
+    Transform T_Ckm1_Ck_true = T_L_Ckm1_true.inverse() * T_L_Ck_true;
+    Transform T_Ckm1_Ck = T_Ckm1_Ck_true * T_pert;  // apply the perturbation
+    T_L_Ck = T_L_Ckm1 * T_Ckm1_Ck;                  // estimated transform
+    
+    // log the distance between the transforms
+    LOG(INFO) << "transform dist: "
+              << (T_L_Ck.translation() - T_L_Ck_true.translation()).norm()
+              << " m";
+  }
+
   timing::Timer per_frame_timer("fuser/time_per_frame");
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
     timing::Timer timer_integrate("fuser/projective_integration");
-    mapper_->integrateDepth(depth_frame, T_L_C, camera);
+    mapper_->integrateDepth(depth_frame, T_L_Ck, camera);
     timer_integrate.Stop();
   }
 
   if ((frame_number + 1) % color_frame_subsampling_ == 0) {
     timing::Timer timer_integrate_color("fuser/integrate_color");
-    mapper_->integrateColor(color_frame, T_L_C, camera);
+    mapper_->integrateColor(color_frame, T_L_Ck, camera);
     timer_integrate_color.Stop();
   }
 
@@ -514,6 +549,10 @@ bool Fuser::integrateFrame(const int frame_number) {
       timer_integrate_esdf.Stop();
     }
   }
+
+  // shift the frames
+  T_L_Ckm1 = T_L_Ck; 
+  T_L_Ckm1_true = T_L_Ck_true;
 
   per_frame_timer.Stop();
 

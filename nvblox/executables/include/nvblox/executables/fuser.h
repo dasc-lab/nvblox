@@ -35,6 +35,8 @@ limitations under the License.
 #include "nvblox/rays/sphere_tracer.h"
 #include "nvblox/utils/logging.h"
 
+#include <liegroups/liegroups.hpp>
+
 namespace nvblox {
 
 class Fuser {
@@ -77,6 +79,24 @@ class Fuser {
   // Get the mapper (useful for experiments where we modify mapper settings)
   Mapper& mapper();
 
+  // Get the covariance matrix of the pose error per frame
+  LieGroups::Matrix6f getOdometryErrorCovariance(){ return odometry_error_cov_; }
+
+  // Set the covariance matrix of the odometry error per frame assuming its sigma * I
+  bool setOdometryErrorCovariance(float sigma)
+  {
+    // assume Sigma = sigma * identity 
+    LieGroups::Matrix6f Sigma = sigma * LieGroups::Matrix6f::Identity();
+    return setOdometryErrorCovariance(Sigma);
+  }
+
+  // Set the covariance matrix of the odometry error per frame
+  bool setOdometryErrorCovariance(LieGroups::Matrix6f Sigma){
+    // TODO(dev): check if the Sigma is valid before accepting it.
+    odometry_error_cov_ = Sigma;
+    return true;
+  }
+
   // Dataset settings.
   int num_frames_to_integrate_ = std::numeric_limits<int>::max();
   std::unique_ptr<datasets::RgbdDataLoaderInterface> data_loader_;
@@ -101,6 +121,11 @@ class Fuser {
 
   // Mapper - Contains map layers and integrators
   std::unique_ptr<Mapper> mapper_;
+
+  // Odometry Error Params
+  LieGroups::Matrix6f odometry_error_cov_ = LieGroups::Matrix6f::Zero();
+  Transform T_L_Ckm1 = Transform::Identity();
+  Transform T_L_Ckm1_true = Transform::Identity(); 
 
   // Output paths
   std::string timing_output_path_;
