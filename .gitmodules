@@ -1,0 +1,3 @@
+[submodule "nvblox/thirdparty/liegroups"]
+	path = nvblox/thirdparty/liegroups
+	url = git@github.com:dev10110/liegroups.git
