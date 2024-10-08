@@ -56,6 +56,13 @@ typedef Eigen::AlignedBox3f AxisAlignedBoundingBox;
 
 typedef Eigen::Isometry3f Transform;
 
+// defines a covariance on poses, uses the right convention
+// see also J. Sola "A Micro Lie Theory for State Estimation in Robotics" for
+// details.
+typedef Eigen::Matrix<float, 6, 6> TransformCovariance;
+typedef Eigen::Matrix<float, 3, 6>
+    TransformActionJacobian;  // jacobian of group action in SE3
+
 /// This can be replaced with std::byte once we go to C++17.
 typedef uint8_t Byte;
 

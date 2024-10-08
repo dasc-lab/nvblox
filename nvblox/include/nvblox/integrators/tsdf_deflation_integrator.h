@@ -18,10 +18,15 @@ class TsdfDeflationIntegrator {
   /// Does not affect unallocated blocks.
   /// @param layer_ptr The occupancy layer to deflate
   /// @param amount The amount to deflate by (typically positive)
-  void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, float decrement);
+  // void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, float
+  // decrement);
   void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr,
                const Transform& T_L_C, float eps_R, float eps_t,
                float voxel_size, const Vector3f& t_delta);
+
+  void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr,
+               const Transform& T_L_C, const Transform& T_Ck_Ckm1,
+               const TransformCovariance& Sigma, const float n_std = 1.0);
 
   // Minimum value to decay to. Smaller values allowed if already present in
   // SDF.
@@ -32,10 +37,16 @@ class TsdfDeflationIntegrator {
   bool deallocate_fully_deflated_blocks = false;
 
  private:
-  void deflateDistance(CertifiedTsdfLayer* layer_ptr, float decrement);
+  // void deflateDistance(CertifiedTsdfLayer* layer_ptr, float decrement);
   void deflateDistance(CertifiedTsdfLayer* layer_ptr, const Transform& T_L_C,
                        float eps_R, float eps_t, float voxel_size,
                        const Vector3f& t_delta);
+
+  void deflateDistance(CertifiedTsdfLayer* layer_ptr, const Transform& T_L_C,
+                       const Transform& T_Ck_Ckm1,
+                       const TransformCovariance& Sigma,
+                       const float n_std = 1.0);
+
   void deallocateFullyDeflatedBlocks(CertifiedTsdfLayer* layer_ptr);
   // Internal buffers
   host_vector<CertifiedTsdfBlock*> allocated_block_ptrs_host_;

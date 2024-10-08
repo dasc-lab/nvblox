@@ -18,9 +18,9 @@ limitations under the License.
 #include <unordered_set>
 
 #include "nvblox/core/hash.h"
+#include "nvblox/integrators/certified_esdf_integrator.h"
 #include "nvblox/integrators/certified_projective_tsdf_integrator.h"
 #include "nvblox/integrators/esdf_integrator.h"
-#include "nvblox/integrators/certified_esdf_integrator.h"
 #include "nvblox/integrators/occupancy_decay_integrator.h"
 #include "nvblox/integrators/projective_color_integrator.h"
 #include "nvblox/integrators/projective_occupancy_integrator.h"
@@ -115,6 +115,16 @@ class Mapper : public MapperBase {
   void deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
                             const float eps_t);
 
+  /// Performs a deflation update on the certified TSDF. This may be called
+  /// independently of projective updates, as we may move without acquiring new
+  /// data.
+  ///@param T_L_C Pose of the camera, specified as a transform from Camera-frame
+  ///             to Layer-frame transform.
+  // TODO(dev): document behavior when implemented here.
+  void deflateCertifiedTsdf(const Transform& T_L_C,
+                            const TransformCovariance& Sigma,
+                            const float n_std = 1.0);
+
   /// Integrates a color frame into the reconstruction.
   ///@param color_frame Color image to integrate.
   ///@param T_L_C Pose of the camera, specified as a transform from Camera-frame
@@ -207,6 +217,8 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const EsdfLayer& ESDF layer
   const EsdfLayer& esdf_layer() const { return layers_.get<EsdfLayer>(); }
+  /// Getter
+  ///@return const CertifiedEsdfLayer& Certified ESDF layer
   const CertifiedEsdfLayer& certified_esdf_layer() const { return layers_.get<CertifiedEsdfLayer>(); }
   /// Getter
   ///@return const MeshLayer& Mesh layer

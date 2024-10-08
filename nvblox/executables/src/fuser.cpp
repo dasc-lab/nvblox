@@ -24,6 +24,10 @@ limitations under the License.
 #include "nvblox/io/pointcloud_io.h"
 #include "nvblox/utils/timing.h"
 
+#include <iomanip>
+#include <iostream>
+#include <limits>
+
 // Layer params
 DEFINE_double(voxel_size, 0.0f, "Voxel resolution in meters.");
 DEFINE_bool(use_occupancy_layer, false,
@@ -43,8 +47,12 @@ DEFINE_string(occupancy_output_path, "",
               "File in which to save the occupancy pointcloud.");
 DEFINE_string(esdf_output_path, "",
               "File in which to save the ESDF pointcloud.");
+DEFINE_string(certified_esdf_output_path, "",
+              "File in which to save the Certified ESDF pointcloud.");
 DEFINE_string(mesh_output_path, "", "File in which to save the surface mesh.");
 DEFINE_string(map_output_path, "", "File in which to save the serialize map.");
+DEFINE_string(trajectory_output_path, "",
+              "File in which to save the trajectory.");
 
 // Subsampling
 DEFINE_int32(projective_frame_subsampling, 0,
@@ -186,6 +194,15 @@ void Fuser::readCommandLineFlags() {
     esdf_output_path_ = FLAGS_esdf_output_path;
     setEsdfMode(Mapper::EsdfMode::k3D);
   }
+  if (!gflags::GetCommandLineFlagInfoOrDie("certified_esdf_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: certified_esdf_output_path = "
+              << FLAGS_certified_esdf_output_path;
+    certified_esdf_output_path_ = FLAGS_certified_esdf_output_path;
+    setEsdfMode(Mapper::EsdfMode::k3D);
+    LOG(INFO) << "Enabling certified mapping";
+    mapper_->certified_mapping_enabled = true;
+  }
   if (!gflags::GetCommandLineFlagInfoOrDie("mesh_output_path").is_default) {
     LOG(INFO) << "Command line parameter found: mesh_output_path = "
               << FLAGS_mesh_output_path;
@@ -195,6 +212,12 @@ void Fuser::readCommandLineFlags() {
     LOG(INFO) << "Command line parameter found: map_output_path = "
               << FLAGS_map_output_path;
     map_output_path_ = FLAGS_map_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("trajectory_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: trajectory_output_path = "
+              << FLAGS_trajectory_output_path;
+    trajectory_output_path_ = FLAGS_trajectory_output_path;
   }
   // Subsampling flags
   if (!gflags::GetCommandLineFlagInfoOrDie("projective_frame_subsampling")
@@ -444,9 +467,23 @@ int Fuser::run() {
     outputESDFPointcloudPly();
   }
 
+  if (!certified_esdf_output_path_.empty()) {
+    LOG(INFO) << "Generating the Certified ESDF.";
+    updateEsdf();
+    LOG(INFO) << "Outputting Certified ESDF pointcloud ply file to "
+              << certified_esdf_output_path_;
+    outputCertifiedESDFPointcloudPly();
+  }
+
   if (!map_output_path_.empty()) {
     LOG(INFO) << "Outputting the serialized map to " << map_output_path_;
     outputMapToFile();
+  }
+
+  if (!trajectory_output_path_.empty()) {
+    LOG(INFO) << "Outputting the perturbed trajectory to "
+              << trajectory_output_path_;
+    outputTrajectoryToFile();
   }
 
   LOG(INFO) << nvblox::timing::Timing::Print();
@@ -485,6 +522,17 @@ void Fuser::setEsdfMode(Mapper::EsdfMode esdf_mode) {
   esdf_mode_ = esdf_mode;
 }
 
+bool Fuser::setOdometryErrorCovariance(float sigma) {
+  LieGroups::Matrix6f Sigma = sigma * LieGroups::Matrix6f::Identity();
+  return setOdometryErrorCovariance(Sigma);
+}
+
+bool Fuser::setOdometryErrorCovariance(LieGroups::Matrix6f Sigma) {
+  // TODO(dev): check if the sigma is valid before accepting it
+  odometry_error_cov_ = Sigma;
+  return true;
+}
+
 bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer timer_file("fuser/file_loading");
   DepthImage depth_frame;
@@ -515,7 +563,10 @@ bool Fuser::integrateFrame(const int frame_number) {
     Transform T_Ckm1_Ck_true = T_L_Ckm1_true.inverse() * T_L_Ck_true;
     Transform T_Ckm1_Ck = T_Ckm1_Ck_true * T_pert;  // apply the perturbation
     T_L_Ck = T_L_Ckm1 * T_Ckm1_Ck;                  // estimated transform
-    
+
+    // save the perturbed trajectory
+    trajectory_.push_back(T_L_Ck);
+
     // log the distance between the transforms
     LOG(INFO) << "transform dist: "
               << (T_L_Ck.translation() - T_L_Ck_true.translation()).norm()
@@ -527,6 +578,15 @@ bool Fuser::integrateFrame(const int frame_number) {
     timing::Timer timer_integrate("fuser/projective_integration");
     mapper_->integrateDepth(depth_frame, T_L_Ck, camera);
     timer_integrate.Stop();
+  }
+
+  if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
+    timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
+    float eps_R = 0.00001;
+    float eps_t = 0.01;  // TODO(dev): update!
+    mapper_->deflateCertifiedTsdf(T_L_Ck, eps_R, eps_t);
+    LOG(INFO) << "DOING DEFLATION!!";
+    timer_deflate.Stop();
   }
 
   if ((frame_number + 1) % color_frame_subsampling_ == 0) {
@@ -600,6 +660,12 @@ bool Fuser::outputESDFPointcloudPly() {
   return io::outputVoxelLayerToPly(mapper_->esdf_layer(), esdf_output_path_);
 }
 
+bool Fuser::outputCertifiedESDFPointcloudPly() {
+  timing::Timer timer_write("fuser/certified_esdf/write");
+  return io::outputVoxelLayerToPly(mapper_->certified_esdf_layer(),
+                                   certified_esdf_output_path_);
+}
+
 bool Fuser::outputMeshPly() {
   timing::Timer timer_write("fuser/mesh/write");
   return io::outputMeshLayerToPly(mapper_->mesh_layer(), mesh_output_path_);
@@ -616,6 +682,33 @@ bool Fuser::outputTimingsToFile() {
 bool Fuser::outputMapToFile() {
   timing::Timer timer_serialize("fuser/map/write");
   return mapper_->saveMap(map_output_path_);
+}
+
+bool Fuser::outputTrajectoryToFile() {
+  timing::Timer timer_trajectory("fuser/trajectory/write");
+  std::ofstream trajectory_file(trajectory_output_path_);
+  if (trajectory_file.is_open()) {
+    for (Transform& T : trajectory_) {
+      for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 4; col++) {
+          trajectory_file << std::fixed
+                          << std::setprecision(
+                                 std::numeric_limits<float>::max_digits10)
+                          << T(row, col);
+          if (row != 3 || col != 3) {
+            // dont print a separator if its the last element
+            trajectory_file << " ";
+          }
+        }
+      }
+      trajectory_file << std::endl;
+    }
+  } else {
+    throw std::runtime_error("could not open trajectory output file");
+    return false;
+  }
+  trajectory_file.close();
+  return true;
 }
 
 }  //  namespace nvblox

@@ -77,9 +77,7 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
     return;
   }
   Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
-  // Unfortunate cast here so we don't have to template the integrator.
-  // Relies on certified TSDF voxels being identical to TSDF voxels.
-  // TODO(rgg): fix this.
+
   tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
                                      T_L_C, eps_R, eps_t, voxel_size_m_,
                                      t_delta);
@@ -87,6 +85,29 @@ void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
   // Add all blocks to the update queue, as they will all have been deflated.
   const std::vector<Index3D> all_blocks =
       layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
+  certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
+}
+
+void Mapper::deflateCertifiedTsdf(const Transform& T_L_C,
+                                  const TransformCovariance& Sigma,
+                                  const float n_std) {
+  // Call the integrator.
+  if (!certified_mapping_enabled) {
+    LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
+    return;
+  }
+
+  Transform T_Ck_Ckm1 = T_L_C.inverse() * prev_T_L_C_;
+
+  tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
+                                     T_L_C, T_Ck_Ckm1, Sigma, n_std);
+
+  prev_T_L_C_ = T_L_C;
+
+  // Add all blocks to the update queue, as they will all have been deflated.
+  const std::vector<Index3D> all_blocks =
+      layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
+
   certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
 }
 
