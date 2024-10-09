@@ -23,19 +23,24 @@ limitations under the License.
 namespace nvblox {
 
 /// Class to integrate TSDF data into a mesh using marching cubes.
-class MeshIntegrator {
+template <typename TsdfVoxelType>
+class GeneralMeshIntegrator {
+
+ using TsdfLayerType = VoxelBlockLayer<TsdfVoxelType>;
+ using VoxelBlockType = VoxelBlock<TsdfVoxelType>
+
  public:
-  MeshIntegrator();
-  ~MeshIntegrator();
+  GeneralMeshIntegrator();
+  ~GeneralMeshIntegrator();
 
   /// Chooses the default mesher between CPU and GPU.
   bool integrateMeshFromDistanceField(
-      const TsdfLayer& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
+      const TsdfLayerType& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
       const DeviceType device_type = DeviceType::kGPU);
 
   /// Integrates only the selected blocks from the distance layer on the CPU.
   /// Prefer to use the GPU version.
-  bool integrateBlocksCPU(const TsdfLayer& distance_layer,
+  bool integrateBlocksCPU(const TsdfLayerType& distance_layer,
                           const std::vector<Index3D>& block_indices,
                           BlockLayer<MeshBlock>* mesh_layer);
 
@@ -45,7 +50,7 @@ class MeshIntegrator {
   /// updated ones or all blocks in the TSDF layer.
   /// @param mesh_layer The mesh layer for output.
   /// @return Whether the integration succeeded.
-  bool integrateBlocksGPU(const TsdfLayer& distance_layer,
+  bool integrateBlocksGPU(const TsdfLayerType& distance_layer,
                           const std::vector<Index3D>& block_indices,
                           BlockLayer<MeshBlock>* mesh_layer);
 
@@ -72,29 +77,29 @@ class MeshIntegrator {
   void weld_vertices(bool weld_vertices) { weld_vertices_ = weld_vertices; }
 
  private:
-  bool isBlockMeshable(const VoxelBlock<TsdfVoxel>::ConstPtr block,
+  bool isBlockMeshable(const VoxelBlock<TsdfVoxelType>::ConstPtr block,
                        float cutoff) const;
 
   bool getTriangleCandidatesAroundVoxel(
-      const VoxelBlock<TsdfVoxel>::ConstPtr block,
-      const std::vector<VoxelBlock<TsdfVoxel>::ConstPtr>& neighbor_blocks,
+      const VoxelBlockType::ConstPtr block,
+      const std::vector<VoxelBlock<TsdfVoxelType>::ConstPtr>& neighbor_blocks,
       const Index3D& index, const Vector3f& voxel_position,
       const float voxel_size,
       marching_cubes::PerVoxelMarchingCubesResults* neighbors);
 
   void getTriangleCandidatesInBlock(
-      const VoxelBlock<TsdfVoxel>::ConstPtr block,
-      const std::vector<VoxelBlock<TsdfVoxel>::ConstPtr>& neighbor_blocks,
+      const VoxelBlockType::ConstPtr block,
+      const std::vector<VoxelBlockType::ConstPtr>& neighbor_blocks,
       const Index3D& block_index, const float block_size,
       std::vector<marching_cubes::PerVoxelMarchingCubesResults>*
           triangle_candidates);
 
-  void getMeshableBlocksGPU(const TsdfLayer& distance_layer,
+  void getMeshableBlocksGPU(const TsdfLayerType& distance_layer,
                             const std::vector<Index3D>& block_indices,
                             float cutoff_distance,
                             std::vector<Index3D>* meshable_blocks);
 
-  void meshBlocksGPU(const TsdfLayer& distance_layer,
+  void meshBlocksGPU(const TsdfLayerType& distance_layer,
                      const std::vector<Index3D>& block_indices,
                      BlockLayer<MeshBlock>* mesh_layer);
 
@@ -120,8 +125,8 @@ class MeshIntegrator {
 
   // These are temporary variables so we don't have to allocate every single
   // frame.
-  host_vector<const VoxelBlock<TsdfVoxel>*> block_ptrs_host_;
-  device_vector<const VoxelBlock<TsdfVoxel>*> block_ptrs_device_;
+  host_vector<const VoxelBlock<TsdfVoxelType>*> block_ptrs_host_;
+  device_vector<const VoxelBlock<TsdfVoxelType>*> block_ptrs_device_;
   host_vector<bool> meshable_host_;
   device_vector<bool> meshable_device_;
   host_vector<Vector3f> block_positions_host_;
@@ -138,5 +143,8 @@ class MeshIntegrator {
   device_vector<int> mesh_block_sizes_device_;
   host_vector<int> mesh_block_sizes_host_;
 };
+
+typedef GeneralMeshIntegrator<TsdfVoxel> MeshIntegrator;
+typedef GeneralMeshIntegrator<CertifiedTsdfVoxel> CertifiedMeshIntegrator;
 
 }  // namespace nvblox

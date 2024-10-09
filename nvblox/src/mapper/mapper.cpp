@@ -172,6 +172,12 @@ void Mapper::generateMesh() {
       layers_.getPtr<MeshLayer>());
 }
 
+void Mapper::generateCertifiedMesh() {
+  certified_mesh_integrator_.integrateBlocksGPU(
+      layers_.get<CertifiedTsdfLayer>(), layers_.get<CertifiedTsdfLayer>().getAllBlockIndices(),
+      layers_.getPtr<CertifiedMeshLayer>());
+}
+
 std::vector<Index3D> Mapper::updateEsdf() {
   CHECK(esdf_mode_ != EsdfMode::k2D)
       << "Currently, we limit computation of the ESDF to 2d *or* 3d. Not both.";

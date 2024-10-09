@@ -36,5 +36,6 @@ using CertifiedEsdfLayer = VoxelBlockLayer<CertifiedEsdfVoxel>;
 using ColorBlock = VoxelBlock<ColorVoxel>;
 using ColorLayer = VoxelBlockLayer<ColorVoxel>;
 using MeshLayer = BlockLayer<MeshBlock>;
+using CertifiedMeshLayer = BlockLayer<MeshBlock>;
 
 }  // namespace nvblox

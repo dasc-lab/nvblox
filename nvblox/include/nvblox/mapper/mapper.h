@@ -152,6 +152,10 @@ class Mapper : public MapperBase {
   /// Generate (or re-generate) a mesh for the entire map. Useful if loading
   /// a layer cake without a mesh layer, for example.
   void generateMesh();
+  
+  /// Generate (or re-generate) a certified mesh for the entire map. Useful if loading
+  /// a layer cake without a mesh layer, for example.
+  void generateCertifiedMesh();
 
   /// Updates the ESDF blocks which require an update.
   /// Note that currently we limit the Mapper class to calculating *either* the
@@ -223,6 +227,8 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const MeshLayer& Mesh layer
   const MeshLayer& mesh_layer() const { return layers_.get<MeshLayer>(); }
+  ///@return const CertifiedMeshLayer& CertifiedMesh layer
+  const CertifiedMeshLayer& certified_mesh_layer() const { return layers_.get<CertifiedMeshLayer>(); }
 
   /// Getter
   ///@return LayerCake& The collection of layers mapped.
@@ -247,6 +253,9 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return MeshLayer& Mesh layer
   MeshLayer& mesh_layer() { return *layers_.getPtr<MeshLayer>(); }
+  /// Getter
+  ///@return CertifiedMeshLayer& CertifiedMesh layer
+  CertifiedMeshLayer& certified_mesh_layer() { return *layers_.getPtr<CertifiedMeshLayer>(); }
 
   /// Getter
   ///@return const ProjectiveTsdfIntegrator& TSDF integrator used for
@@ -286,6 +295,11 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return const MeshIntegrator& Mesh integrator
   const MeshIntegrator& mesh_integrator() const { return mesh_integrator_; }
+  
+  /// Getter
+  ///@return const CertifiedMeshIntegrator& Certified Mesh integrator
+  const CertifiedMeshIntegrator& certified_mesh_integrator() const { return certified_mesh_integrator_; }
+
   /// Getter
   ///@return const EsdfIntegrator& ESDF integrator
   const EsdfIntegrator& esdf_integrator() const { return esdf_integrator_; }
@@ -330,6 +344,10 @@ class Mapper : public MapperBase {
   /// Getter
   ///@return MeshIntegrator& Mesh integrator
   MeshIntegrator& mesh_integrator() { return mesh_integrator_; }
+  /// Getter
+  ///@return CertifiedMeshIntegrator& CertifiedMesh integrator
+  CertifiedMeshIntegrator& certified_mesh_integrator() { return certified_mesh_integrator_; }
+
   /// Getter
   ///@return EsdfIntegrator& ESDF integrator
   EsdfIntegrator& esdf_integrator() { return esdf_integrator_; }
@@ -389,6 +407,7 @@ class Mapper : public MapperBase {
   OccupancyDecayIntegrator occupancy_decay_integrator_;
   ProjectiveColorIntegrator color_integrator_;
   MeshIntegrator mesh_integrator_;
+  CertifiedMeshIntegrator certified_mesh_integrator_;
   EsdfIntegrator esdf_integrator_;
   CertifiedEsdfIntegrator certified_esdf_integrator_;
 
@@ -397,6 +416,7 @@ class Mapper : public MapperBase {
   /// respectively. They are updated when new frames are integrated into the
   /// reconstruction by calls to integrateDepth() and integrateLidarDepth().
   Index3DSet mesh_blocks_to_update_;
+  Index3DSet certified_mesh_blocks_to_update_;
   Index3DSet esdf_blocks_to_update_;
   Index3DSet certified_esdf_blocks_to_update_;
 };

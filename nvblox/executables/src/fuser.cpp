@@ -582,11 +582,10 @@ bool Fuser::integrateFrame(const int frame_number) {
 
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
     timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
-    float eps_R = 0.00001;
-    float eps_t = 0.01;  // TODO(dev): update!
-    mapper_->deflateCertifiedTsdf(T_L_Ck, eps_R, eps_t);
-    LOG(INFO) << "DOING DEFLATION!!";
+    float n_std = 1.0;
+    mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std);
     timer_deflate.Stop();
+    LOG(INFO) << "DOING DEFLATION!!";
   }
 
   if ((frame_number + 1) % color_frame_subsampling_ == 0) {

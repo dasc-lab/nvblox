@@ -3,27 +3,27 @@
 #include "nvblox/integrators/internal/integrators_common.h"
 
 #include <Eigen/Eigenvalues>
+#include <assert.h>
 
 namespace nvblox {
 
-// get the largest eigenvalue of a symmetric positive definite matrix. returns
-// -1 if error.
-__device__ void eigmax(float* l, const Eigen::Matrix<float, 3, 3>& Sigma) {
-  // use the self adjoint solver since its a symmetric pos def matrix
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(
-      Sigma, Eigen::DecompositionOptions::EigenvaluesOnly);
+// get the largest eigenvalue of a symmetric positive definite matrix. returns negative of the solver status if error.
+__device__ float eigmax_3x3(const Eigen::Matrix3f & M) {
 
-  if (solver.info() == Eigen::Success) {
-    Eigen::Vector3f evals = solver.eigenvalues();
-    *l = float(evals.maxCoeff());
-    return;
-  } else {
-    *l = -1.0;
-    return;
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver;
+  solver.computeDirect(M);
+
+  if (solver.info() == Eigen::Success){
+    return solver.eigenvalues().maxCoeff();
   }
+  else {
+    return -float(solver.info());
+  }
+
 }
 
-__device__ void getSE3ActionJacobian(Eigen::Matrix<float, 3, 6>* J,
+
+__device__  Eigen::Matrix<float, 3, 6> getSE3ActionJacobian(
                                      const Transform& T, const Vector3f& p) {
   // get the rotation matrix
   Eigen::Matrix<float, 3, 3> R = T.linear();
@@ -32,10 +32,41 @@ __device__ void getSE3ActionJacobian(Eigen::Matrix<float, 3, 6>* J,
   Eigen::Matrix3f S;
   S << 0, -p.z(), p.y(), p.z(), 0, -p.x(), -p.y(), p.x(), 0;
 
-  J->block(0, 0, 3, 3) = R;
-  J->block(0, 3, 3, 3) = -R * S;
+  Eigen::Matrix<float, 3, 6> J;
+  J.block(0, 0, 3, 3) = R;
+  J.block(0, 3, 3, 3) = (-R * S);
 
-  return;
+  // Eigen::Matrix<float, 3, 6> J = Eigen::Matrix<float, 3, 6>::Zero();
+  // J.block(0, 0, 3, 3) = Eigen::Matrix<float, 3,3>::Identity();
+  // J.block(0, 3, 3, 3) = Eigen::Matrix<float, 3,3>::Identity(); 
+
+  return J;
+}
+
+__device__ float getDecrement( const Transform & T_Ck_Ckm1, const Vector3f& p_camera, const TransformCovariance & Sigma, const float n_std){
+
+  // // *decrement = 2.0;
+  // // return;
+  // construct the jacobian
+  Eigen::Matrix<float, 3, 6> J = getSE3ActionJacobian(T_Ck_Ckm1, p_camera);
+
+  // get the covariance of the point
+  Eigen::Matrix<float, 3,3> Sigma_p = J * (Sigma) * J.transpose();
+
+  // get the largest eigenvalue
+  float max_eigval = eigmax_3x3(Sigma_p);
+
+  if (max_eigval > 0)
+  {
+    float decrement = n_std * std::sqrt(max_eigval);
+    return decrement;
+  }
+  else
+  {
+    // SOMETHING WENT WRONG!!
+    float decrement = 100.0; // delete it all....
+    return decrement;
+  }
 }
 
 // @param T_L_C: Transform from local frame to camera frame
@@ -111,10 +142,13 @@ __global__ void deflateDistanceKernel(
     CertifiedTsdfBlock** block_ptrs, Index3D* block_indices,
     const Transform* T_Ck_L, const Transform* T_Ck_Ckm1,
     const TransformCovariance* Sigma, const float n_std, const float block_size,
-    const float min_distance, bool* is_block_fully_deflated) {
+    const float min_distance, bool* is_block_fully_deflated, 
+    float* decrement_range) {
   // A single thread in each block initializes the output to true
   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     is_block_fully_deflated[blockIdx.x] = true;
+    decrement_range[0] = 100.0;
+    decrement_range[1] = -100.0;
   }
   __syncthreads();
 
@@ -154,19 +188,21 @@ __global__ void deflateDistanceKernel(
   // convert the position vector to the camera frame
   Vector3f p_camera = (*T_Ck_L) * p;
 
-  // construct the jacobian
-  Eigen::Matrix<float, 3, 6> J;
-  getSE3ActionJacobian(&J, *T_Ck_Ckm1, p_camera);
+  float decrement = getDecrement(*T_Ck_Ckm1, p_camera, *Sigma, n_std);
+  // float decrement = 1.0;
 
-  // get the covariance of the point
-  Eigen::Matrix3f Sigma_p = J * (*Sigma) * J.transpose();
+  decrement_range[0] = std::min(decrement_range[0], decrement);
+  decrement_range[1] = std::max(decrement_range[1], decrement);
 
-  // get the largest eigenvalue
-  float eig = -1;
-  eigmax(&eig, Sigma_p);
-
-  // get the decrement
-  float decrement = n_std * std::sqrt(eig);
+  // // set min and max decrememnts
+  // if (decrement < decrement_range[0])
+  // {
+  //   decrement_range[0] = decrement;
+  // }
+  // if (decrement > decrement_range[1])
+  // {
+  //   decrement_range[1] = decrement;
+  // }
 
   // apply the decrement, but only to the correction, so that the estimated
   // distance isnt affected
@@ -223,7 +259,9 @@ __global__ void deflateDistanceKernel(
 // // voxel_ptr->weight);
 // }
 
-TsdfDeflationIntegrator::TsdfDeflationIntegrator() {
+TsdfDeflationIntegrator::TsdfDeflationIntegrator(bool deallocate_fully_deflated_blocks)
+: deallocate_fully_deflated_blocks_(deallocate_fully_deflated_blocks)
+ {
   checkCudaErrors(cudaStreamCreate(&integration_stream_));
 }
 
@@ -254,7 +292,7 @@ void TsdfDeflationIntegrator::deflate(
     return;
   }
   deflateDistance(layer_ptr, T_L_C, eps_R, eps_t, voxel_size, t_delta);
-  if (deallocate_fully_deflated_blocks) {
+  if (deallocate_fully_deflated_blocks_) {
     deallocateFullyDeflatedBlocks(layer_ptr);
   }
 }
@@ -269,7 +307,7 @@ void TsdfDeflationIntegrator::deflate(
     return;
   }
   deflateDistance(layer_ptr, T_L_C, T_Ck_Ckm1, Sigma, n_std);
-  if (deallocate_fully_deflated_blocks) {
+  if (deallocate_fully_deflated_blocks_) {
     deallocateFullyDeflatedBlocks(layer_ptr);
   }
 }
@@ -362,6 +400,10 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
     block_fully_deflated_host_.reserve(new_size);
   }
 
+  // check that the decremement vectors are created.
+  decrement_range_device_.resize(2);
+  decrement_range_host_.resize(2);
+
   // Get the block pointers on host and copy them to device
   allocated_block_ptrs_host_ = layer_ptr->getAllBlockPointers();
   allocated_block_ptrs_device_ = allocated_block_ptrs_host_;
@@ -402,19 +444,24 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
       allocated_block_indices_device_.data(),  // NOLINT
       d_T_Ck_L, d_T_Ck_Ckm1, d_Sigma,          // NOLINT
       n_std, block_size, min_distance,         // NOLINT
-      block_fully_deflated_device_.data());    // NOLINT
+      block_fully_deflated_device_.data(), 
+      decrement_range_device_.data());    // NOLINT
 
   cudaStreamSynchronize(integration_stream_);
   checkCudaErrors(cudaPeekAtLastError());
 
   // Copy results back to host
   block_fully_deflated_host_ = block_fully_deflated_device_;
+  decrement_range_host_ = decrement_range_device_;
+
 
   // Check if nothing is lost on the way
   CHECK(allocated_block_ptrs_host_.size() == num_allocated_blocks);
   CHECK(allocated_block_ptrs_device_.size() == num_allocated_blocks);
   CHECK(block_fully_deflated_device_.size() == num_allocated_blocks);
   CHECK(block_fully_deflated_host_.size() == num_allocated_blocks);
+
+  LOG(INFO) << "Decrement Range: " << decrement_range_host_[0] << " " << decrement_range_host_[1];
 }
 
 // void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,

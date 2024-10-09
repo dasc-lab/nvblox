@@ -31,14 +31,17 @@ limitations under the License.
 
 namespace nvblox {
 
-MeshIntegrator::~MeshIntegrator() {
+
+template <typename TsdfVoxelType>
+GeneralMeshIntegrator<TsdfVoxelType>::~GeneralMeshIntegrator() {
   if (cuda_stream_ != nullptr) {
     cudaStreamDestroy(cuda_stream_);
   }
 }
 
-bool MeshIntegrator::integrateBlocksGPU(
-    const TsdfLayer& distance_layer, const std::vector<Index3D>& block_indices,
+template <typename TsdfVoxelType>
+bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksGPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
     BlockLayer<MeshBlock>* mesh_layer) {
   timing::Timer mesh_timer("mesh/gpu/integrate");
   CHECK_NOTNULL(mesh_layer);
@@ -82,7 +85,8 @@ bool MeshIntegrator::integrateBlocksGPU(
   return true;
 }
 
-MeshIntegrator::MeshIntegrator() {
+template <typename TsdfVoxelType>
+GeneralMeshIntegrator<TsdfVoxelType>::GeneralMeshIntegrator() {
   // clang-format off
     cube_index_offsets_ << 0, 1, 1, 0, 0, 1, 1, 0,
                            0, 0, 1, 1, 0, 0, 1, 1,
@@ -90,8 +94,9 @@ MeshIntegrator::MeshIntegrator() {
   // clang-format on
 }
 
-bool MeshIntegrator::integrateMeshFromDistanceField(
-    const TsdfLayer& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
+template <typename TsdfVoxelType>
+bool GeneralMeshIntegrator<TsdfVoxelType>::integrateMeshFromDistanceField(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
     const DeviceType device_type) {
   // First, get all the blocks.
   std::vector<Index3D> block_indices = distance_layer.getAllBlockIndices();
@@ -102,8 +107,9 @@ bool MeshIntegrator::integrateMeshFromDistanceField(
   }
 }
 
-bool MeshIntegrator::integrateBlocksCPU(
-    const TsdfLayer& distance_layer, const std::vector<Index3D>& block_indices,
+template <typename TsdfVoxelType>
+bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
     BlockLayer<MeshBlock>* mesh_layer) {
   timing::Timer mesh_timer("mesh/integrate");
   CHECK_NOTNULL(mesh_layer);
@@ -156,9 +162,10 @@ bool MeshIntegrator::integrateBlocksCPU(
   return true;
 }
 
-bool MeshIntegrator::isBlockMeshable(
-    const VoxelBlock<TsdfVoxel>::ConstPtr block, float cutoff) const {
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+template <typename TsdfVoxelType>
+bool GeneralMeshIntegrator<TsdfVoxelType>::isBlockMeshable(
+    const VoxelBlock<TsdfVoxelType>::ConstPtr block, float cutoff) const {
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
 
   Index3D voxel_index;
   // Iterate over all the voxels:
@@ -183,16 +190,17 @@ bool MeshIntegrator::isBlockMeshable(
   return false;
 }
 
-void MeshIntegrator::getTriangleCandidatesInBlock(
-    const TsdfBlock::ConstPtr block,
-    const std::vector<TsdfBlock::ConstPtr>& neighbor_blocks,
+template <typename TsdfVoxelType>
+void GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesInBlock(
+    const VoxelBlock<TsdfVoxelType>::ConstPtr block,
+    const std::vector<VoxelBlock<TsdfVoxelType>::ConstPtr>& neighbor_blocks,
     const Index3D& block_index, const float block_size,
     std::vector<marching_cubes::PerVoxelMarchingCubesResults>*
         triangle_candidates) {
   CHECK_NOTNULL(block);
   CHECK_NOTNULL(triangle_candidates);
 
-  constexpr int kVoxelsPerSide = TsdfBlock::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
   const float voxel_size = block_size / kVoxelsPerSide;
 
   Index3D voxel_index;
@@ -219,8 +227,9 @@ void MeshIntegrator::getTriangleCandidatesInBlock(
   }
 }
 
-bool MeshIntegrator::getTriangleCandidatesAroundVoxel(
-    const TsdfBlock::ConstPtr block,
+template <typename TsdfVoxelType>
+bool GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesAroundVoxel(
+    const VoxelBlock<TsdfVoxelType>::ConstPtr block,
     const std::vector<VoxelBlock<TsdfVoxel>::ConstPtr>& neighbor_blocks,
     const Index3D& voxel_index, const Vector3f& voxel_position,
     const float voxel_size,
@@ -469,8 +478,8 @@ __global__ void meshBlocksCalculateVerticesKernel(
 
 // Wrappers
 
-void MeshIntegrator::getMeshableBlocksGPU(
-    const TsdfLayer& distance_layer, const std::vector<Index3D>& block_indices,
+void GeneralMeshIntegrator<TsdfVoxelType>::getMeshableBlocksGPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
     float cutoff_distance, std::vector<Index3D>* meshable_blocks) {
   CHECK_NOTNULL(meshable_blocks);
   if (block_indices.size() == 0) {
@@ -513,7 +522,8 @@ void MeshIntegrator::getMeshableBlocksGPU(
   }
 }
 
-void MeshIntegrator::meshBlocksGPU(const TsdfLayer& distance_layer,
+template <typename TsdfVoxelType>
+void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
                                    const std::vector<Index3D>& block_indices,
                                    BlockLayer<MeshBlock>* mesh_layer) {
   if (block_indices.empty()) {
@@ -769,7 +779,9 @@ __global__ void weldVerticesCubKernel(CudaMeshBlock* mesh_blocks) {
   }
 }
 
-void MeshIntegrator::weldVertices(
+
+template <typename TsdfVoxelType>
+void GeneralMeshIntegrator<TsdfVoxelType>::weldVertices(
     device_vector<CudaMeshBlock>* cuda_mesh_blocks) {
   if (cuda_mesh_blocks->size() == 0) {
     return;
