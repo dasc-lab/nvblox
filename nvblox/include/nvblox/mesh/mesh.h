@@ -34,7 +34,8 @@ struct Mesh {
 
   /// Create a combined Mesh object from a MeshBlock layer. Useful for mesh
   /// output.
-  static Mesh fromLayer(const BlockLayer<MeshBlock>& layer);
+  template <typename MeshBlockType>
+  static Mesh fromLayer(const BlockLayer<MeshBlockType>& layer);
 };
 
 }  // namespace nvblox

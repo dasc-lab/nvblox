@@ -25,15 +25,18 @@ namespace io {
 
 // Combines mesh blocks in a layer into a single list of vertices, triangles,
 // and normals.
-void combineMeshBlocks(const BlockLayer<MeshBlock>& layer,
+template <typename MeshBlockType>
+void combineMeshBlocks(const BlockLayer<MeshBlockType>& layer,
                        std::vector<Vector3f>* vertices_ptr,
                        std::vector<Vector3f>* normals_ptr,
                        std::vector<int>* triangles_ptr);
 
-bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
+template <typename MeshBlockType>
+bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const std::string& filename);
 
-bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
+template <typename MeshBlockType>
+bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const char* filename);
 
 }  // namespace io

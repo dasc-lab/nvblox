@@ -3,7 +3,6 @@
 #include "nvblox/integrators/internal/integrators_common.h"
 
 #include <Eigen/Eigenvalues>
-#include <assert.h>
 
 namespace nvblox {
 

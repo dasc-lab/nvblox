@@ -17,7 +17,8 @@ limitations under the License.
 
 namespace nvblox {
 
-Mesh Mesh::fromLayer(const BlockLayer<MeshBlock>& layer) {
+template <typename MeshBlockType>
+Mesh Mesh::fromLayer(const BlockLayer<MeshBlockType>& layer) {
   Mesh mesh;
 
   // Keep track of the vertex index.
@@ -27,7 +28,7 @@ Mesh Mesh::fromLayer(const BlockLayer<MeshBlock>& layer) {
   const std::vector<Index3D> indices = layer.getAllBlockIndices();
 
   for (const Index3D& index : indices) {
-    MeshBlock::ConstPtr block = layer.getBlockAtIndex(index);
+    typename MeshBlockType::ConstPtr block = layer.getBlockAtIndex(index);
 
     // Copy over.
     const std::vector<Vector3f> vertices = block->getVertexVectorOnCPU();
@@ -65,5 +66,9 @@ Mesh Mesh::fromLayer(const BlockLayer<MeshBlock>& layer) {
 
   return mesh;
 }
+
+// Explicit Instantiation
+template Mesh Mesh::fromLayer(const BlockLayer<MeshBlock>& layer);
+template Mesh Mesh::fromLayer(const BlockLayer<CertifiedMeshBlock>& layer);
 
 }  // namespace nvblox

@@ -210,6 +210,7 @@ add_library(nvblox_lib SHARED
     src/io/image_io.cpp
     src/mesh/marching_cubes.cu
     src/mesh/mesh_block.cu
+    src/mesh/certified_mesh_block.cu
     src/mesh/mesh_integrator_color.cu
     src/mesh/mesh_integrator.cu
     src/mesh/mesh.cpp

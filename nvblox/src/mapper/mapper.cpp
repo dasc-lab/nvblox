@@ -30,7 +30,8 @@ Mapper::Mapper(float voxel_size_m, MemoryType memory_type,
       projective_layer_type_(projective_layer_type) {
   layers_ = LayerCake::create<TsdfLayer, CertifiedTsdfLayer, ColorLayer,
                               OccupancyLayer, EsdfLayer, CertifiedEsdfLayer,
-                              MeshLayer>(voxel_size_m_, memory_type);
+                              MeshLayer, CertifiedMeshLayer>(voxel_size_m_,
+                                                             memory_type);
 }
 
 Mapper::Mapper(const std::string& map_filepath, MemoryType memory_type)

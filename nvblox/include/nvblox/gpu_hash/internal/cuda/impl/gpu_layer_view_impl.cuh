@@ -34,10 +34,10 @@ GPULayerView<BlockType>::GPULayerView(size_t max_num_blocks)
   // The GPUHashImpl takes care of allocating GPU memory.
 }
 
-template <typename BlockType>
-GPULayerView<BlockType>::~GPULayerView() {
-  // The GPUHashImpl takes care of cleaning up GPU memory.
-}
+// template <typename BlockType>
+// GPULayerView<BlockType>::~GPULayerView<BlockType>() {
+//   // The GPUHashImpl takes care of cleaning up GPU memory.
+// }
 
 template <typename BlockType>
 GPULayerView<BlockType>::GPULayerView(const GPULayerView<BlockType>& other)

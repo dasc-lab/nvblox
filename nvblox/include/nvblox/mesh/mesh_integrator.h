@@ -23,11 +23,11 @@ limitations under the License.
 namespace nvblox {
 
 /// Class to integrate TSDF data into a mesh using marching cubes.
-template <typename TsdfVoxelType>
+template <typename TsdfVoxelType, typename MeshBlockType>
 class GeneralMeshIntegrator {
-
- using TsdfLayerType = VoxelBlockLayer<TsdfVoxelType>;
- using VoxelBlockType = VoxelBlock<TsdfVoxelType>
+  using TsdfLayerType = VoxelBlockLayer<TsdfVoxelType>;
+  using VoxelBlockType = VoxelBlock<TsdfVoxelType>;
+  using MeshLayerType = BlockLayer<MeshBlockType>;
 
  public:
   GeneralMeshIntegrator();
@@ -35,14 +35,15 @@ class GeneralMeshIntegrator {
 
   /// Chooses the default mesher between CPU and GPU.
   bool integrateMeshFromDistanceField(
-      const TsdfLayerType& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
+      const TsdfLayerType& distance_layer,
+      BlockLayer<MeshBlockType>* mesh_layer,
       const DeviceType device_type = DeviceType::kGPU);
 
   /// Integrates only the selected blocks from the distance layer on the CPU.
   /// Prefer to use the GPU version.
   bool integrateBlocksCPU(const TsdfLayerType& distance_layer,
                           const std::vector<Index3D>& block_indices,
-                          BlockLayer<MeshBlock>* mesh_layer);
+                          BlockLayer<MeshBlockType>* mesh_layer);
 
   /// @brief Integrate new TSDF blocks into a mesh on the GPU.
   /// @param distance_layer The TSDF layer to integrate.
@@ -52,23 +53,23 @@ class GeneralMeshIntegrator {
   /// @return Whether the integration succeeded.
   bool integrateBlocksGPU(const TsdfLayerType& distance_layer,
                           const std::vector<Index3D>& block_indices,
-                          BlockLayer<MeshBlock>* mesh_layer);
+                          BlockLayer<MeshBlockType>* mesh_layer);
 
   /// Color mesh layer.
   /// TODO(alexmillane): Currently these functions color vertices by taking the
   /// CLOSEST color. Would be good to have an option at least for interpolation.
-  void colorMesh(const ColorLayer& color_layer, MeshLayer* mesh_layer);
+  void colorMesh(const ColorLayer& color_layer, MeshLayerType* mesh_layer);
   void colorMesh(const ColorLayer& color_layer,
                  const std::vector<Index3D>& block_indices,
-                 MeshLayer* mesh_layer);
-  void colorMeshGPU(const ColorLayer& color_layer, MeshLayer* mesh_layer);
+                 MeshLayerType* mesh_layer);
+  void colorMeshGPU(const ColorLayer& color_layer, MeshLayerType* mesh_layer);
   void colorMeshGPU(const ColorLayer& color_layer,
                     const std::vector<Index3D>& block_indices,
-                    MeshLayer* mesh_layer);
-  void colorMeshCPU(const ColorLayer& color_layer, MeshLayer* mesh_layer);
+                    MeshLayerType* mesh_layer);
+  void colorMeshCPU(const ColorLayer& color_layer, MeshLayerType* mesh_layer);
   void colorMeshCPU(const ColorLayer& color_layer,
                     const std::vector<Index3D>& block_indices,
-                    MeshLayer* mesh_layer);
+                    MeshLayerType* mesh_layer);
 
   float min_weight() const { return min_weight_; }
   void min_weight(float min_weight) { min_weight_ = min_weight; }
@@ -77,19 +78,19 @@ class GeneralMeshIntegrator {
   void weld_vertices(bool weld_vertices) { weld_vertices_ = weld_vertices; }
 
  private:
-  bool isBlockMeshable(const VoxelBlock<TsdfVoxelType>::ConstPtr block,
+  bool isBlockMeshable(const typename VoxelBlockType::ConstPtr block,
                        float cutoff) const;
 
   bool getTriangleCandidatesAroundVoxel(
-      const VoxelBlockType::ConstPtr block,
-      const std::vector<VoxelBlock<TsdfVoxelType>::ConstPtr>& neighbor_blocks,
+      const typename VoxelBlockType::ConstPtr block,
+      const std::vector<typename VoxelBlockType::ConstPtr>& neighbor_blocks,
       const Index3D& index, const Vector3f& voxel_position,
       const float voxel_size,
       marching_cubes::PerVoxelMarchingCubesResults* neighbors);
 
   void getTriangleCandidatesInBlock(
-      const VoxelBlockType::ConstPtr block,
-      const std::vector<VoxelBlockType::ConstPtr>& neighbor_blocks,
+      const typename VoxelBlockType::ConstPtr block,
+      const std::vector<typename VoxelBlockType::ConstPtr>& neighbor_blocks,
       const Index3D& block_index, const float block_size,
       std::vector<marching_cubes::PerVoxelMarchingCubesResults>*
           triangle_candidates);
@@ -101,7 +102,7 @@ class GeneralMeshIntegrator {
 
   void meshBlocksGPU(const TsdfLayerType& distance_layer,
                      const std::vector<Index3D>& block_indices,
-                     BlockLayer<MeshBlock>* mesh_layer);
+                     BlockLayer<MeshBlockType>* mesh_layer);
 
   // Weld overlapping vertices together, updaing the normals & indices of the
   // reduced vertex count.
@@ -125,8 +126,8 @@ class GeneralMeshIntegrator {
 
   // These are temporary variables so we don't have to allocate every single
   // frame.
-  host_vector<const VoxelBlock<TsdfVoxelType>*> block_ptrs_host_;
-  device_vector<const VoxelBlock<TsdfVoxelType>*> block_ptrs_device_;
+  host_vector<const VoxelBlockType*> block_ptrs_host_;
+  device_vector<const VoxelBlockType*> block_ptrs_device_;
   host_vector<bool> meshable_host_;
   device_vector<bool> meshable_device_;
   host_vector<Vector3f> block_positions_host_;
@@ -144,7 +145,8 @@ class GeneralMeshIntegrator {
   host_vector<int> mesh_block_sizes_host_;
 };
 
-typedef GeneralMeshIntegrator<TsdfVoxel> MeshIntegrator;
-typedef GeneralMeshIntegrator<CertifiedTsdfVoxel> CertifiedMeshIntegrator;
+typedef GeneralMeshIntegrator<TsdfVoxel, MeshBlock> MeshIntegrator;
+typedef GeneralMeshIntegrator<CertifiedTsdfVoxel, CertifiedMeshBlock>
+    CertifiedMeshIntegrator;
 
 }  // namespace nvblox

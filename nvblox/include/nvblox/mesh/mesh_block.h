@@ -78,12 +78,64 @@ struct MeshBlock {
   static Ptr allocate(MemoryType memory_type);
 };
 
+// Clone to define a CertifiedMeshBlock. LayerCake must have unique types... :(
+struct CertifiedMeshBlock {
+  typedef std::shared_ptr<CertifiedMeshBlock> Ptr;
+  typedef std::shared_ptr<const CertifiedMeshBlock> ConstPtr;
+
+  /// Create a mesh block of the specified memory type.
+  CertifiedMeshBlock(MemoryType memory_type = MemoryType::kDevice);
+
+  /// "Clone" copy constructor, with the possibility to change device type.
+  CertifiedMeshBlock(const CertifiedMeshBlock& mesh_block);
+  /// "Clone" to a different memory type.
+  CertifiedMeshBlock(const CertifiedMeshBlock& mesh_block,
+                     MemoryType memory_type);
+
+  // Mesh Data
+  // These unified vectors contain the mesh data for this block. Note that
+  // Colors and/or intensities are optional. The "triangles" vector is a vector
+  // of indices into the vertices vector. Triplets of consecutive elements form
+  // triangles with the indexed vertices as their corners.
+  unified_vector<Vector3f> vertices;
+  unified_vector<Vector3f> normals;
+  unified_vector<Color> colors;
+  unified_vector<int> triangles;
+
+  /// Clear all data within the mesh block.
+  void clear();
+
+  /// Resize vertices and normals to the correct number of vertices.
+  void resizeToNumberOfVertices(size_t new_size);
+  /// Reserve space in the vertices and normals vectors.
+  void reserveNumberOfVertices(size_t new_capacity);
+
+  /// Size of the vertices vector.
+  size_t size() const;
+  /// Capacity (allocated size) of the vertices vector.
+  size_t capacity() const;
+
+  /// Resize colors/intensities such that:
+  /// `colors.size()/intensities.size() == vertices.size()`
+  void expandColorsToMatchVertices();
+
+  // Copy mesh data to the CPU.
+  std::vector<Vector3f> getVertexVectorOnCPU() const;
+  std::vector<Vector3f> getNormalVectorOnCPU() const;
+  std::vector<int> getTriangleVectorOnCPU() const;
+  std::vector<Color> getColorVectorOnCPU() const;
+
+  /// Note(alexmillane): Memory type ignored, MeshBlocks live in CPU memory.
+  static Ptr allocate(MemoryType memory_type);
+};
+
 /// Helper struct for mesh blocks on CUDA.
 /// NOTE: We need this because we can't pass MeshBlock to kernel functions
 /// because of the presence of unified_vector members.
 struct CudaMeshBlock {
   CudaMeshBlock() = default;
   CudaMeshBlock(MeshBlock* block);
+  CudaMeshBlock(CertifiedMeshBlock* block);
 
   Vector3f* vertices;
   Vector3f* normals;
@@ -111,6 +163,28 @@ inline BlockLayer<MeshBlock>::BlockLayer(const BlockLayer& other,
     }
     blocks_.emplace(block_index,
                     std::make_shared<MeshBlock>(*block, memory_type));
+  }
+}
+
+/// Specialization of BlockLayer clone just for CertifiedMeshBlocks.
+template <>
+inline BlockLayer<CertifiedMeshBlock>::BlockLayer(const BlockLayer& other,
+                                                  MemoryType memory_type)
+    : BlockLayer(other.block_size_, memory_type) {
+  LOG(INFO) << "Deep copy of Mesh BlockLayer containing "
+            << other.numAllocatedBlocks() << " blocks.";
+  // Re-create all the blocks.
+  std::vector<Index3D> all_block_indices = other.getAllBlockIndices();
+
+  // Iterate over all blocks, clonin'.
+  for (const Index3D& block_index : all_block_indices) {
+    typename CertifiedMeshBlock::ConstPtr block =
+        other.getBlockAtIndex(block_index);
+    if (block == nullptr) {
+      continue;
+    }
+    blocks_.emplace(block_index,
+                    std::make_shared<CertifiedMeshBlock>(*block, memory_type));
   }
 }
 

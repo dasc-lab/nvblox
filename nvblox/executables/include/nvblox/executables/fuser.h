@@ -73,6 +73,8 @@ class Fuser {
   bool outputCertifiedESDFPointcloudPly();
   // Output a file with the mesh.
   bool outputMeshPly();
+  // Output a file with the certified mesh.
+  bool outputCertifiedMeshPly();
   // Output timings to a file
   bool outputTimingsToFile();
   // Output the serialized map to a file
@@ -130,6 +132,7 @@ class Fuser {
   std::string certified_esdf_output_path_;
   std::string occupancy_output_path_;
   std::string mesh_output_path_;
+  std::string certified_mesh_output_path_;
   std::string map_output_path_;
   std::string trajectory_output_path_;
 };

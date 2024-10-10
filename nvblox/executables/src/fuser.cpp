@@ -50,7 +50,9 @@ DEFINE_string(esdf_output_path, "",
 DEFINE_string(certified_esdf_output_path, "",
               "File in which to save the Certified ESDF pointcloud.");
 DEFINE_string(mesh_output_path, "", "File in which to save the surface mesh.");
-DEFINE_string(map_output_path, "", "File in which to save the serialize map.");
+DEFINE_string(certified_mesh_output_path, "",
+              "File in which to save the certified surface mesh.");
+DEFINE_string(map_output_path, "", "File in which to save the serialized map.");
 DEFINE_string(trajectory_output_path, "",
               "File in which to save the trajectory.");
 
@@ -207,6 +209,12 @@ void Fuser::readCommandLineFlags() {
     LOG(INFO) << "Command line parameter found: mesh_output_path = "
               << FLAGS_mesh_output_path;
     mesh_output_path_ = FLAGS_mesh_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("certified_mesh_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: certified_mesh_output_path = "
+              << FLAGS_certified_mesh_output_path;
+    certified_mesh_output_path_ = FLAGS_certified_mesh_output_path;
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("map_output_path").is_default) {
     LOG(INFO) << "Command line parameter found: map_output_path = "
@@ -460,6 +468,14 @@ int Fuser::run() {
     outputMeshPly();
   }
 
+  if (!certified_mesh_output_path_.empty()) {
+    LOG(INFO) << "Generating the certified mesh.";
+    mapper_->generateCertifiedMesh();
+    LOG(INFO) << "Outputting certified mesh ply file to "
+              << certified_mesh_output_path_;
+    outputCertifiedMeshPly();
+  }
+
   if (!esdf_output_path_.empty()) {
     LOG(INFO) << "Generating the ESDF.";
     updateEsdf();
@@ -668,6 +684,12 @@ bool Fuser::outputCertifiedESDFPointcloudPly() {
 bool Fuser::outputMeshPly() {
   timing::Timer timer_write("fuser/mesh/write");
   return io::outputMeshLayerToPly(mapper_->mesh_layer(), mesh_output_path_);
+}
+
+bool Fuser::outputCertifiedMeshPly() {
+  timing::Timer timer_write("fuser/cerfified_mesh/write");
+  return io::outputMeshLayerToPly(mapper_->certified_mesh_layer(),
+                                  certified_mesh_output_path_);
 }
 
 bool Fuser::outputTimingsToFile() {

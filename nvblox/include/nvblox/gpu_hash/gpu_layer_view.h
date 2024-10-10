@@ -39,7 +39,9 @@ class GPULayerView {
   GPULayerView& operator=(const GPULayerView& other);
   GPULayerView& operator=(GPULayerView&& other);
 
-  ~GPULayerView();
+  ~GPULayerView(){
+      // The GPUHashImpl takes care of cleaning up GPU memory.
+  };
 
   // Creates a new GPULayerView from a layer
   void reset(LayerType* layer_ptr);

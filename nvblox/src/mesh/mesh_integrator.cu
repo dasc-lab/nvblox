@@ -31,18 +31,18 @@ limitations under the License.
 
 namespace nvblox {
 
-
-template <typename TsdfVoxelType>
-GeneralMeshIntegrator<TsdfVoxelType>::~GeneralMeshIntegrator() {
+template <typename TsdfVoxelType, typename MeshBlockType>
+GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::~GeneralMeshIntegrator() {
   if (cuda_stream_ != nullptr) {
     cudaStreamDestroy(cuda_stream_);
   }
 }
 
-template <typename TsdfVoxelType>
-bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksGPU(
-    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
-    BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+bool GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::integrateBlocksGPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
+    const std::vector<Index3D>& block_indices,
+    BlockLayer<MeshBlockType>* mesh_layer) {
   timing::Timer mesh_timer("mesh/gpu/integrate");
   CHECK_NOTNULL(mesh_layer);
   CHECK_NEAR(distance_layer.block_size(), mesh_layer->block_size(), 1e-4);
@@ -61,7 +61,8 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksGPU(
 
   // Clear all blocks if they exist.
   for (const Index3D& block_index : block_indices) {
-    MeshBlock::Ptr mesh_block = mesh_layer->getBlockAtIndex(block_index);
+    typename MeshBlockType::Ptr mesh_block =
+        mesh_layer->getBlockAtIndex(block_index);
     if (mesh_block) {
       mesh_block->clear();
     }
@@ -85,8 +86,8 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksGPU(
   return true;
 }
 
-template <typename TsdfVoxelType>
-GeneralMeshIntegrator<TsdfVoxelType>::GeneralMeshIntegrator() {
+template <typename TsdfVoxelType, typename MeshBlockType>
+GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::GeneralMeshIntegrator() {
   // clang-format off
     cube_index_offsets_ << 0, 1, 1, 0, 0, 1, 1, 0,
                            0, 0, 1, 1, 0, 0, 1, 1,
@@ -94,10 +95,11 @@ GeneralMeshIntegrator<TsdfVoxelType>::GeneralMeshIntegrator() {
   // clang-format on
 }
 
-template <typename TsdfVoxelType>
-bool GeneralMeshIntegrator<TsdfVoxelType>::integrateMeshFromDistanceField(
-    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, BlockLayer<MeshBlock>* mesh_layer,
-    const DeviceType device_type) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+bool GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::
+    integrateMeshFromDistanceField(
+        const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
+        BlockLayer<MeshBlockType>* mesh_layer, const DeviceType device_type) {
   // First, get all the blocks.
   std::vector<Index3D> block_indices = distance_layer.getAllBlockIndices();
   if (device_type == DeviceType::kCPU) {
@@ -107,10 +109,11 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateMeshFromDistanceField(
   }
 }
 
-template <typename TsdfVoxelType>
-bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
-    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
-    BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+bool GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::integrateBlocksCPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
+    const std::vector<Index3D>& block_indices,
+    BlockLayer<MeshBlockType>* mesh_layer) {
   timing::Timer mesh_timer("mesh/integrate");
   CHECK_NOTNULL(mesh_layer);
   CHECK_NEAR(distance_layer.block_size(), mesh_layer->block_size(), 1e-4);
@@ -122,7 +125,7 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
   // For each block...
   for (const Index3D& block_index : block_indices) {
     // Get the block.
-    VoxelBlock<TsdfVoxel>::ConstPtr block =
+    typename VoxelBlockType::ConstPtr block =
         distance_layer.getBlockAtIndex(block_index);
 
     // Check meshability - basically if this contains anything near the
@@ -132,7 +135,7 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
     }
 
     // Get all the neighbor blocks.
-    std::vector<VoxelBlock<TsdfVoxel>::ConstPtr> neighbor_blocks(8);
+    std::vector<typename VoxelBlockType::ConstPtr> neighbor_blocks(8);
     for (int i = 0; i < 8; i++) {
       Index3D neighbor_index =
           block_index + marching_cubes::directionFromNeighborIndex(i);
@@ -150,7 +153,8 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
     }
 
     // Allocate the mesh block.
-    MeshBlock::Ptr mesh_block = mesh_layer->allocateBlockAtIndex(block_index);
+    typename MeshBlockType::Ptr mesh_block =
+        mesh_layer->allocateBlockAtIndex(block_index);
 
     // Then actually calculate the triangles.
     for (const marching_cubes::PerVoxelMarchingCubesResults& candidate :
@@ -162,10 +166,10 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::integrateBlocksCPU(
   return true;
 }
 
-template <typename TsdfVoxelType>
-bool GeneralMeshIntegrator<TsdfVoxelType>::isBlockMeshable(
-    const VoxelBlock<TsdfVoxelType>::ConstPtr block, float cutoff) const {
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
+template <typename TsdfVoxelType, typename MeshBlockType>
+bool GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::isBlockMeshable(
+    const typename VoxelBlockType::ConstPtr block, float cutoff) const {
+  constexpr int kVoxelsPerSide = VoxelBlockType::kVoxelsPerSide;
 
   Index3D voxel_index;
   // Iterate over all the voxels:
@@ -175,7 +179,7 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::isBlockMeshable(
          voxel_index.y()++) {
       for (voxel_index.z() = 0; voxel_index.z() < kVoxelsPerSide;
            voxel_index.z()++) {
-        const TsdfVoxel* voxel =
+        const TsdfVoxelType* voxel =
             &block->voxels[voxel_index.x()][voxel_index.y()][voxel_index.z()];
 
         // Check if voxel distance is within the cutoff to determine if
@@ -190,17 +194,18 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::isBlockMeshable(
   return false;
 }
 
-template <typename TsdfVoxelType>
-void GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesInBlock(
-    const VoxelBlock<TsdfVoxelType>::ConstPtr block,
-    const std::vector<VoxelBlock<TsdfVoxelType>::ConstPtr>& neighbor_blocks,
-    const Index3D& block_index, const float block_size,
-    std::vector<marching_cubes::PerVoxelMarchingCubesResults>*
-        triangle_candidates) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::
+    getTriangleCandidatesInBlock(
+        const typename VoxelBlockType::ConstPtr block,
+        const std::vector<typename VoxelBlockType::ConstPtr>& neighbor_blocks,
+        const Index3D& block_index, const float block_size,
+        std::vector<marching_cubes::PerVoxelMarchingCubesResults>*
+            triangle_candidates) {
   CHECK_NOTNULL(block);
   CHECK_NOTNULL(triangle_candidates);
 
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlockType::kVoxelsPerSide;
   const float voxel_size = block_size / kVoxelsPerSide;
 
   Index3D voxel_index;
@@ -227,13 +232,14 @@ void GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesInBlock(
   }
 }
 
-template <typename TsdfVoxelType>
-bool GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesAroundVoxel(
-    const VoxelBlock<TsdfVoxelType>::ConstPtr block,
-    const std::vector<VoxelBlock<TsdfVoxel>::ConstPtr>& neighbor_blocks,
-    const Index3D& voxel_index, const Vector3f& voxel_position,
-    const float voxel_size,
-    marching_cubes::PerVoxelMarchingCubesResults* neighbors) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+bool GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::
+    getTriangleCandidatesAroundVoxel(
+        const typename VoxelBlockType::ConstPtr block,
+        const std::vector<typename VoxelBlockType::ConstPtr>& neighbor_blocks,
+        const Index3D& voxel_index, const Vector3f& voxel_position,
+        const float voxel_size,
+        marching_cubes::PerVoxelMarchingCubesResults* neighbors) {
   DCHECK_EQ(neighbor_blocks.size(), 8);
   constexpr int kVoxelsPerSide = VoxelBlock<bool>::kVoxelsPerSide;
   for (unsigned int i = 0; i < 8; ++i) {
@@ -253,7 +259,7 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesAroundVoxel(
       }
     }
 
-    const TsdfVoxel* voxel = nullptr;
+    const TsdfVoxelType* voxel = nullptr;
     // Get the voxel either from the current block or from the corresponding
     // neighbor.
     if (search_neighbor) {
@@ -296,8 +302,9 @@ bool GeneralMeshIntegrator<TsdfVoxelType>::getTriangleCandidatesAroundVoxel(
 // meshable.
 // Block size MUST be voxels_per_side x voxels_per_side x voxel_per_size.
 // Grid size can be anything.
+template <typename TsdfVoxelType, typename MeshBlockType>
 __global__ void isBlockMeshableKernel(int num_blocks,
-                                      const VoxelBlock<TsdfVoxel>** blocks,
+                                      const VoxelBlock<TsdfVoxelType>** blocks,
                                       float cutoff_distance, float min_weight,
                                       bool* meshable) {
   dim3 voxel_index = threadIdx;
@@ -307,7 +314,7 @@ __global__ void isBlockMeshableKernel(int num_blocks,
   for (int block_index = blockIdx.x; block_index < num_blocks;
        block_index += gridDim.x) {
     // Get the correct voxel for this index.
-    const TsdfVoxel& voxel =
+    const TsdfVoxelType& voxel =
         blocks[block_index]
             ->voxels[voxel_index.z][voxel_index.y][voxel_index.x];
     if (fabs(voxel.distance) <= cutoff_distance && voxel.weight >= min_weight) {
@@ -321,12 +328,13 @@ __global__ void isBlockMeshableKernel(int num_blocks,
 // meshes for them.
 // Block size MUST be voxels_per_side x voxels_per_side x voxel_per_size.
 // Grid size can be anything.
+template <typename TsdfVoxelType, typename MeshBlockType>
 __global__ void meshBlocksCalculateTableIndicesKernel(
-    int num_blocks, const VoxelBlock<TsdfVoxel>** blocks,
+    int num_blocks, const VoxelBlock<TsdfVoxelType>** blocks,
     const Vector3f* block_positions, float voxel_size, float min_weight,
     marching_cubes::PerVoxelMarchingCubesResults* marching_cubes_results,
     int* mesh_block_sizes) {
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
   constexpr int kVoxelsPerBlock =
       kVoxelsPerSide * kVoxelsPerSide * kVoxelsPerSide;
   constexpr int kCubeNeighbors = 8;
@@ -355,7 +363,8 @@ __global__ void meshBlocksCalculateTableIndicesKernel(
     __syncthreads();
 
     // Getting the block pointer is complicated now so let's just get it.
-    const VoxelBlock<TsdfVoxel>* block = blocks[block_index * kCubeNeighbors];
+    const VoxelBlock<TsdfVoxelType>* block =
+        blocks[block_index * kCubeNeighbors];
 
     // Get the linear index of the this voxel in this block
     const int vertex_neighbor_idx =
@@ -381,12 +390,12 @@ __global__ void meshBlocksCalculateTableIndicesKernel(
         }
       }
 
-      const TsdfVoxel* voxel = nullptr;
+      const TsdfVoxelType* voxel = nullptr;
       // Don't look for neighbors for now.
       if (search_neighbor) {
         int neighbor_index =
             marching_cubes::neighborIndexFromDirection(block_offset);
-        const VoxelBlock<TsdfVoxel>* neighbor_block =
+        const VoxelBlock<TsdfVoxelType>* neighbor_block =
             blocks[block_index * kCubeNeighbors + neighbor_index];
         if (neighbor_block == nullptr) {
           skip_voxel = true;
@@ -442,11 +451,12 @@ __global__ void meshBlocksCalculateTableIndicesKernel(
   }
 }
 
+template <typename TsdfVoxelType, typename MeshBlockType>
 __global__ void meshBlocksCalculateVerticesKernel(
     int num_blocks,
     const marching_cubes::PerVoxelMarchingCubesResults* marching_cubes_results,
     const int* mesh_block_sizes, CudaMeshBlock* mesh_blocks) {
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
 
   const int linear_thread_idx =
       threadIdx.x +
@@ -477,16 +487,17 @@ __global__ void meshBlocksCalculateVerticesKernel(
 }
 
 // Wrappers
-
-void GeneralMeshIntegrator<TsdfVoxelType>::getMeshableBlocksGPU(
-    const VoxelBlockLayer<TsdfVoxelType>& distance_layer, const std::vector<Index3D>& block_indices,
-    float cutoff_distance, std::vector<Index3D>* meshable_blocks) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::getMeshableBlocksGPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
+    const std::vector<Index3D>& block_indices, float cutoff_distance,
+    std::vector<Index3D>* meshable_blocks) {
   CHECK_NOTNULL(meshable_blocks);
   if (block_indices.size() == 0) {
     return;
   }
 
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
   // One block per block, 1 thread per pixel. :)
   // Dim block can be smaller, but dim_threads must be the same.
   int dim_block = block_indices.size();
@@ -507,9 +518,10 @@ void GeneralMeshIntegrator<TsdfVoxelType>::getMeshableBlocksGPU(
   meshable_device_.resize(block_indices.size());
   meshable_device_.setZero();
 
-  isBlockMeshableKernel<<<dim_block, dim_threads, 0, cuda_stream_>>>(
-      block_indices.size(), block_ptrs_device_.data(), cutoff_distance,
-      min_weight_, meshable_device_.data());
+  isBlockMeshableKernel<TsdfVoxelType, MeshBlockType>
+      <<<dim_block, dim_threads, 0, cuda_stream_>>>(
+          block_indices.size(), block_ptrs_device_.data(), cutoff_distance,
+          min_weight_, meshable_device_.data());
   checkCudaErrors(cudaStreamSynchronize(cuda_stream_));
   checkCudaErrors(cudaPeekAtLastError());
 
@@ -522,15 +534,16 @@ void GeneralMeshIntegrator<TsdfVoxelType>::getMeshableBlocksGPU(
   }
 }
 
-template <typename TsdfVoxelType>
-void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
-                                   const std::vector<Index3D>& block_indices,
-                                   BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::meshBlocksGPU(
+    const VoxelBlockLayer<TsdfVoxelType>& distance_layer,
+    const std::vector<Index3D>& block_indices,
+    BlockLayer<MeshBlockType>* mesh_layer) {
   if (block_indices.empty()) {
     return;
   }
   timing::Timer mesh_prep_timer("mesh/gpu/mesh_blocks/prep");
-  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+  constexpr int kVoxelsPerSide = VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
   constexpr int kCubeNeighbors = 8;
 
   // One block per block, 1 thread per voxel. :)
@@ -583,11 +596,12 @@ void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<T
   // - the per-vertex indexes into the magic triangle table
   // - the number of vertices in each mesh block.
   timing::Timer mesh_kernel_1_timer("mesh/gpu/mesh_blocks/kernel_table");
-  meshBlocksCalculateTableIndicesKernel<<<dim_block, dim_threads, 0,
-                                          cuda_stream_>>>(
-      block_indices.size(), block_ptrs_device_.data(),
-      block_positions_device_.data(), voxel_size, min_weight_,
-      marching_cubes_results_device_.data(), mesh_block_sizes_device_.data());
+  meshBlocksCalculateTableIndicesKernel<TsdfVoxelType, MeshBlockType>
+      <<<dim_block, dim_threads, 0, cuda_stream_>>>(
+          block_indices.size(), block_ptrs_device_.data(),
+          block_positions_device_.data(), voxel_size, min_weight_,
+          marching_cubes_results_device_.data(),
+          mesh_block_sizes_device_.data());
   checkCudaErrors(cudaPeekAtLastError());
   checkCudaErrors(cudaStreamSynchronize(cuda_stream_));
 
@@ -604,7 +618,7 @@ void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<T
     const int num_vertices = mesh_block_sizes_host_[i];
 
     if (num_vertices > 0) {
-      MeshBlock::Ptr output_block =
+      typename MeshBlockType::Ptr output_block =
           mesh_layer->allocateBlockAtIndex(block_indices[i]);
       if (output_block == nullptr) {
         continue;
@@ -632,10 +646,10 @@ void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<T
   // - Translating the magic table indices into triangle vertices and writing
   //   them into the mesh layer.
   timing::Timer mesh_kernel_2_timer("mesh/gpu/mesh_blocks/kernel_vertices");
-  meshBlocksCalculateVerticesKernel<<<dim_block, dim_threads, 0,
-                                      cuda_stream_>>>(
-      block_indices.size(), marching_cubes_results_device_.data(),
-      mesh_block_sizes_device_.data(), mesh_blocks_device_.data());
+  meshBlocksCalculateVerticesKernel<TsdfVoxelType, MeshBlockType>
+      <<<dim_block, dim_threads, 0, cuda_stream_>>>(
+          block_indices.size(), marching_cubes_results_device_.data(),
+          mesh_block_sizes_device_.data(), mesh_blocks_device_.data());
   checkCudaErrors(cudaPeekAtLastError());
   checkCudaErrors(cudaStreamSynchronize(cuda_stream_));
   mesh_kernel_2_timer.Stop();
@@ -650,7 +664,7 @@ void GeneralMeshIntegrator<TsdfVoxelType>::meshBlocksGPU(const VoxelBlockLayer<T
     // Set the sizes on CPU :(
     for (size_t i = 0; i < block_indices.size(); i++) {
       size_t new_size = mesh_blocks_host_[i].vertices_size;
-      MeshBlock::Ptr output_block =
+      typename MeshBlockType::Ptr output_block =
           mesh_layer->getBlockAtIndex(block_indices[i]);
       if (output_block == nullptr) {
         continue;
@@ -779,9 +793,8 @@ __global__ void weldVerticesCubKernel(CudaMeshBlock* mesh_blocks) {
   }
 }
 
-
-template <typename TsdfVoxelType>
-void GeneralMeshIntegrator<TsdfVoxelType>::weldVertices(
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::weldVertices(
     device_vector<CudaMeshBlock>* cuda_mesh_blocks) {
   if (cuda_mesh_blocks->size() == 0) {
     return;
@@ -794,5 +807,9 @@ void GeneralMeshIntegrator<TsdfVoxelType>::weldVertices(
           cuda_mesh_blocks->data());
   checkCudaErrors(cudaStreamSynchronize(cuda_stream_));
 }
+
+// explicit instantiation
+template class GeneralMeshIntegrator<TsdfVoxel, MeshBlock>;
+template class GeneralMeshIntegrator<CertifiedTsdfVoxel, CertifiedMeshBlock>;
 
 }  // namespace nvblox

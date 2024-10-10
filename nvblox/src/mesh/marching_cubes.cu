@@ -78,8 +78,9 @@ void interpolateEdgeVertices(
   }
 }
 
+template <typename MeshBlockType>
 void meshCube(const PerVoxelMarchingCubesResults& marching_cubes_results,
-              MeshBlock* mesh) {
+              MeshBlockType* mesh) {
   CHECK_NOTNULL(mesh);
   const int table_index = marching_cubes_results.marching_cubes_table_index;
 
@@ -122,6 +123,14 @@ void meshCube(const PerVoxelMarchingCubesResults& marching_cubes_results,
     table_col += 3;
   }
 }
+
+// explicit instantiation
+template void meshCube<MeshBlock>(
+    const PerVoxelMarchingCubesResults& marching_cubes_results,
+    MeshBlock* mesh);
+template void meshCube<CertifiedMeshBlock>(
+    const PerVoxelMarchingCubesResults& marching_cubes_results,
+    CertifiedMeshBlock* mesh);
 
 __device__ void calculateOutputIndex(
     PerVoxelMarchingCubesResults* marching_cubes_results, int* size) {

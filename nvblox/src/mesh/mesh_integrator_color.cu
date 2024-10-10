@@ -25,13 +25,16 @@ limitations under the License.
 
 namespace nvblox {
 
-void MeshIntegrator::colorMesh(const ColorLayer& color_layer,
-                               BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMesh(
+    const ColorLayer& color_layer, BlockLayer<MeshBlockType>* mesh_layer) {
   colorMesh(color_layer, mesh_layer->getAllBlockIndices(), mesh_layer);
 }
-void MeshIntegrator::colorMesh(const ColorLayer& color_layer,
-                               const std::vector<Index3D>& block_indices,
-                               BlockLayer<MeshBlock>* mesh_layer) {
+
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMesh(
+    const ColorLayer& color_layer, const std::vector<Index3D>& block_indices,
+    BlockLayer<MeshBlockType>* mesh_layer) {
   // Default choice is GPU
   colorMeshGPU(color_layer, block_indices, mesh_layer);
 }
@@ -42,7 +45,7 @@ void MeshIntegrator::colorMesh(const ColorLayer& color_layer,
  * Call with
  * - one ThreadBlock per VoxelBlock, GridDim 1D
  * - BlockDim 1D, any size: we implement a stridded access pattern over
- *   MeshBlock verticies
+ *   MeshBlockType verticies
  *
  * @param: color_blocks:     a list of color blocks which correspond in position
  *                           to mesh_blocks
@@ -106,8 +109,10 @@ __global__ void colorMeshBlocksConstant(Color color,
   }
 }
 
+template <typename TsdfVoxelType, typename MeshBlockType>
 void colorMeshBlocksConstantGPU(const std::vector<Index3D>& block_indices,
-                                const Color& color, MeshLayer* mesh_layer,
+                                const Color& color,
+                                BlockLayer<MeshBlockType>* mesh_layer,
                                 cudaStream_t cuda_stream) {
   CHECK_NOTNULL(mesh_layer);
   if (block_indices.size() == 0) {
@@ -146,9 +151,10 @@ void colorMeshBlocksConstantGPU(const std::vector<Index3D>& block_indices,
   checkCudaErrors(cudaFree(cuda_mesh_block_device_ptrs));
 }
 
+template <typename TsdfVoxelType, typename MeshBlockType>
 void colorMeshBlockByClosestColorVoxelGPU(
     const ColorLayer& color_layer, const std::vector<Index3D>& block_indices,
-    MeshLayer* mesh_layer, cudaStream_t cuda_stream) {
+    BlockLayer<MeshBlockType>* mesh_layer, cudaStream_t cuda_stream) {
   CHECK_NOTNULL(mesh_layer);
   if (block_indices.size() == 0) {
     return;
@@ -196,7 +202,7 @@ void colorMeshBlockByClosestColorVoxelGPU(
   constexpr int kThreadsPerBlock = 8 * 32;  // Chosen at random
   const int num_blocks = block_indices.size();
   const float voxel_size =
-      mesh_layer->block_size() / VoxelBlock<TsdfVoxel>::kVoxelsPerSide;
+      mesh_layer->block_size() / VoxelBlock<TsdfVoxelType>::kVoxelsPerSide;
   colorMeshBlockByClosestColorVoxel<<<num_blocks, kThreadsPerBlock, 0,
                                       cuda_stream>>>(
       color_block_device_ptrs,   // NOLINT
@@ -213,15 +219,17 @@ void colorMeshBlockByClosestColorVoxelGPU(
   checkCudaErrors(cudaFree(cuda_mesh_block_device_ptrs));
 }
 
-void MeshIntegrator::colorMeshGPU(const ColorLayer& color_layer,
-                                  MeshLayer* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMeshGPU(
+    const ColorLayer& color_layer, MeshLayerType* mesh_layer) {
   colorMeshGPU(color_layer, mesh_layer->getAllBlockIndices(), mesh_layer);
 }
 
-void MeshIntegrator::colorMeshGPU(
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMeshGPU(
     const ColorLayer& color_layer,
     const std::vector<Index3D>& requested_block_indices,
-    MeshLayer* mesh_layer) {
+    MeshLayerType* mesh_layer) {
   CHECK_NOTNULL(mesh_layer);
   CHECK_EQ(color_layer.block_size(), mesh_layer->block_size());
 
@@ -261,23 +269,26 @@ void MeshIntegrator::colorMeshGPU(
   }
 
   // Color
-  colorMeshBlockByClosestColorVoxelGPU(
+  colorMeshBlockByClosestColorVoxelGPU<TsdfVoxelType, MeshBlockType>(
       color_layer, block_indices_in_color_layer, mesh_layer, cuda_stream_);
-  colorMeshBlocksConstantGPU(block_indices_not_in_color_layer,
-                             default_mesh_color_, mesh_layer, cuda_stream_);
+  colorMeshBlocksConstantGPU<TsdfVoxelType, MeshBlockType>(
+      block_indices_not_in_color_layer, default_mesh_color_, mesh_layer,
+      cuda_stream_);
 }
 
-void MeshIntegrator::colorMeshCPU(const ColorLayer& color_layer,
-                                  BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMeshCPU(
+    const ColorLayer& color_layer, BlockLayer<MeshBlockType>* mesh_layer) {
   colorMeshCPU(color_layer, mesh_layer->getAllBlockIndices(), mesh_layer);
 }
 
-void MeshIntegrator::colorMeshCPU(const ColorLayer& color_layer,
-                                  const std::vector<Index3D>& block_indices,
-                                  BlockLayer<MeshBlock>* mesh_layer) {
+template <typename TsdfVoxelType, typename MeshBlockType>
+void GeneralMeshIntegrator<TsdfVoxelType, MeshBlockType>::colorMeshCPU(
+    const ColorLayer& color_layer, const std::vector<Index3D>& block_indices,
+    BlockLayer<MeshBlockType>* mesh_layer) {
   // For each vertex just grab the closest color
   for (const Index3D& block_idx : block_indices) {
-    MeshBlock::Ptr block = mesh_layer->getBlockAtIndex(block_idx);
+    typename MeshBlockType::Ptr block = mesh_layer->getBlockAtIndex(block_idx);
     if (block == nullptr) {
       continue;
     }
@@ -293,5 +304,9 @@ void MeshIntegrator::colorMeshCPU(const ColorLayer& color_layer,
     }
   }
 }
+
+// explicit instantiation
+template class GeneralMeshIntegrator<TsdfVoxel, MeshBlock>;
+template class GeneralMeshIntegrator<CertifiedTsdfVoxel, CertifiedMeshBlock>;
 
 }  // namespace nvblox

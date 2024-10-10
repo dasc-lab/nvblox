@@ -23,7 +23,8 @@ limitations under the License.
 namespace nvblox {
 namespace io {
 
-bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
+template <typename MeshBlockType>
+bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const std::string& filename) {
   // TODO: doesn't support intensity yet!!!!
   const Mesh mesh = Mesh::fromLayer(layer);
@@ -41,10 +42,17 @@ bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
   return writer.write();
 }
 
-bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
+template <typename MeshBlockType>
+bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const char* filename) {
   return outputMeshLayerToPly(layer, std::string(filename));
 }
+
+// Explicit Instantiation
+template bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
+                                   const char* filename);
+template bool outputMeshLayerToPly(const BlockLayer<CertifiedMeshBlock>& layer,
+                                   const char* filename);
 
 }  // namespace io
 }  // namespace nvblox

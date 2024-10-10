@@ -75,9 +75,10 @@ __host__ __device__ Vector3f interpolateVertex(const Vector3f& vertex1,
                                                float sdf1, float sdf2);
 
 // Actually populate the mesh block.
+template <typename MeshBlockType>
 __host__ void meshCube(
     const PerVoxelMarchingCubesResults& marching_cubes_results,
-    MeshBlock* mesh);
+    MeshBlockType* mesh);
 
 __device__ void calculateOutputIndex(
     PerVoxelMarchingCubesResults* marching_cubes_results, int* size);
