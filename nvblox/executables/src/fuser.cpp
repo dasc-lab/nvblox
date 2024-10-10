@@ -433,6 +433,27 @@ int Fuser::run() {
     return 1;
   }
 
+  if (!trajectory_output_path_.empty()) {
+    LOG(INFO) << "Outputting the perturbed trajectory to "
+              << trajectory_output_path_;
+    outputTrajectoryToFile();
+  }
+
+  if (!mesh_output_path_.empty()) {
+    LOG(INFO) << "Generating the mesh.";
+    mapper_->updateMesh();
+    LOG(INFO) << "Outputting mesh ply file to " << mesh_output_path_;
+    outputMeshPly();
+  }
+
+  if (!certified_mesh_output_path_.empty()) {
+    LOG(INFO) << "Generating the certified mesh.";
+    mapper_->generateCertifiedMesh();
+    LOG(INFO) << "Outputting certified mesh ply file to "
+              << certified_mesh_output_path_;
+    outputCertifiedMeshPly();
+  }
+
   if (!occupancy_output_path_.empty()) {
     if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
       LOG(INFO) << "Outputting occupancy pointcloud ply file to "
@@ -461,21 +482,6 @@ int Fuser::run() {
     }
   }
 
-  if (!mesh_output_path_.empty()) {
-    LOG(INFO) << "Generating the mesh.";
-    mapper_->updateMesh();
-    LOG(INFO) << "Outputting mesh ply file to " << mesh_output_path_;
-    outputMeshPly();
-  }
-
-  if (!certified_mesh_output_path_.empty()) {
-    LOG(INFO) << "Generating the certified mesh.";
-    mapper_->generateCertifiedMesh();
-    LOG(INFO) << "Outputting certified mesh ply file to "
-              << certified_mesh_output_path_;
-    outputCertifiedMeshPly();
-  }
-
   if (!esdf_output_path_.empty()) {
     LOG(INFO) << "Generating the ESDF.";
     updateEsdf();
@@ -496,11 +502,6 @@ int Fuser::run() {
     outputMapToFile();
   }
 
-  if (!trajectory_output_path_.empty()) {
-    LOG(INFO) << "Outputting the perturbed trajectory to "
-              << trajectory_output_path_;
-    outputTrajectoryToFile();
-  }
 
   LOG(INFO) << nvblox::timing::Timing::Print();
 
