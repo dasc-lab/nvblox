@@ -200,8 +200,11 @@ class Timing {
   static double GetHz(size_t handle);
   static double GetHz(std::string const& tag);
   static void Print(std::ostream& out);
+  static void PrintMinimal(std::ostream& out);
   static std::string Print();
-  static std::string SecondsToTimeString(double seconds);
+  static std::string PrintMinimal();
+  static std::string SecondsToTimeString(double seconds,
+                                         const std::string format = "%09.6f");
   static void Reset();
   static const map_t& GetTimers() { return Instance().tagMap_; }
 

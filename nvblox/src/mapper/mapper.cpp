@@ -174,9 +174,12 @@ void Mapper::generateMesh() {
 }
 
 void Mapper::generateCertifiedMesh() {
-  certified_mesh_integrator_.integrateBlocksGPU(
-      layers_.get<CertifiedTsdfLayer>(), layers_.get<CertifiedTsdfLayer>().getAllBlockIndices(),
-      layers_.getPtr<CertifiedMeshLayer>());
+  if (certified_mapping_enabled) {
+    certified_mesh_integrator_.integrateBlocksGPU(
+        layers_.get<CertifiedTsdfLayer>(),
+        layers_.get<CertifiedTsdfLayer>().getAllBlockIndices(),
+        layers_.getPtr<CertifiedMeshLayer>());
+  }
 }
 
 std::vector<Index3D> Mapper::updateEsdf() {
@@ -187,10 +190,6 @@ std::vector<Index3D> Mapper::updateEsdf() {
   // Convert the set of EsdfBlocks needing an update to a vector
   std::vector<Index3D> esdf_blocks_to_update_vector(
       esdf_blocks_to_update_.begin(), esdf_blocks_to_update_.end());
-
-  std::vector<Index3D> certified_esdf_blocks_to_update_vector(
-      certified_esdf_blocks_to_update_.begin(),
-      certified_esdf_blocks_to_update_.end());
 
   if (projective_layer_type_ == ProjectiveLayerType::kTsdf) {
     esdf_integrator_.integrateBlocks(layers_.get<TsdfLayer>(),
@@ -203,6 +202,9 @@ std::vector<Index3D> Mapper::updateEsdf() {
   }
 
   if (certified_mapping_enabled) {
+    std::vector<Index3D> certified_esdf_blocks_to_update_vector(
+        certified_esdf_blocks_to_update_.begin(),
+        certified_esdf_blocks_to_update_.end());
     certified_esdf_integrator_.integrateBlocks(
         layers_.get<CertifiedTsdfLayer>(),
         certified_esdf_blocks_to_update_vector,
@@ -285,11 +287,14 @@ std::vector<Index3D> Mapper::clearOutsideRadius(const Vector3f& center,
     esdf_blocks_to_update_.erase(idx);
   }
   layers_.getPtr<TsdfLayer>()->clearBlocks(block_indices_for_deletion);
-  // TODO(rgg): consider certified layer separately?
-  layers_.getPtr<CertifiedTsdfLayer>()->clearBlocks(block_indices_for_deletion);
+  if (certified_mapping_enabled) {
+    layers_.getPtr<CertifiedTsdfLayer>()->clearBlocks(
+        block_indices_for_deletion);
+    layers_.getPtr<CertifiedEsdfLayer>()->clearBlocks(
+        block_indices_for_deletion);
+  }
   layers_.getPtr<ColorLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<EsdfLayer>()->clearBlocks(block_indices_for_deletion);
-  layers_.getPtr<CertifiedEsdfLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<MeshLayer>()->clearBlocks(block_indices_for_deletion);
   layers_.getPtr<OccupancyLayer>()->clearBlocks(block_indices_for_deletion);
   return block_indices_for_deletion;

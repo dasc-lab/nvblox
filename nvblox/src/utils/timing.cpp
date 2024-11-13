@@ -202,9 +202,10 @@ double Timing::GetHz(size_t handle) {
 
 double Timing::GetHz(std::string const& tag) { return GetHz(GetHandle(tag)); }
 
-std::string Timing::SecondsToTimeString(double seconds) {
+std::string Timing::SecondsToTimeString(double seconds,
+                                        const std::string format) {
   char buffer[256];
-  snprintf(buffer, sizeof(buffer), "%09.6f", seconds);
+  snprintf(buffer, sizeof(buffer), format.c_str(), seconds);
   return buffer;
 }
 
@@ -216,7 +217,7 @@ void Timing::Print(std::ostream& out) {
   }
 
   out << "NVBlox Timing\n";
-  out << "-----------\n";
+  out << "-------------\n";
   for (typename map_t::value_type t : tagMap) {
     size_t i = t.second;
     out.width((std::streamsize)Instance().maxTagLength_);
@@ -243,9 +244,52 @@ void Timing::Print(std::ostream& out) {
     out << std::endl;
   }
 }
+
+void Timing::PrintMinimal(std::ostream& out) {
+  map_t& tagMap = Instance().tagMap_;
+
+  if (tagMap.empty()) {
+    return;
+  }
+
+  out << "NVBlox Timing (Minimal)\n";
+  out << "-----------------------\n";
+  for (typename map_t::value_type t : tagMap) {
+    size_t i = t.second;
+    out.width((std::streamsize)Instance().maxTagLength_);
+    out.setf(std::ios::left, std::ios::adjustfield);
+    out << t.first << "\t";
+    out.width(7);
+
+    out.setf(std::ios::right, std::ios::adjustfield);
+    // out << GetNumSamples(i) << "\t";
+    if (GetNumSamples(i) > 0) {
+      // out << SecondsToTimeString(GetTotalSeconds(i)) << "\t";
+      double meansec = GetMeanSeconds(i);
+      double stddev = sqrt(GetVarianceSeconds(i));
+      out << SecondsToTimeString(1000 * meansec, "%09.2f") << " +- ";
+      out << SecondsToTimeString(1000 * stddev, "%09.2f") << ")\t";
+
+      double minsec = GetMinSeconds(i);
+      double maxsec = GetMaxSeconds(i);
+
+      // The min or max are out of bounds.
+      out << "[" << SecondsToTimeString(1000 * minsec, "%09.2f") << ","
+          << SecondsToTimeString(1000 * maxsec, "%09.2f") << "] ms";
+    }
+    out << std::endl;
+  }
+}
+
 std::string Timing::Print() {
   std::stringstream ss;
   Print(ss);
+  return ss.str();
+}
+
+std::string Timing::PrintMinimal() {
+  std::stringstream ss;
+  PrintMinimal(ss);
   return ss.str();
 }
 
