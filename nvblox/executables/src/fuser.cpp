@@ -23,10 +23,13 @@ limitations under the License.
 #include "nvblox/io/ply_writer.h"
 #include "nvblox/io/pointcloud_io.h"
 #include "nvblox/utils/timing.h"
+#include "nvblox/mesh/mesh.h"
+
 
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 
 // Layer params
 DEFINE_double(voxel_size, 0.0f, "Voxel resolution in meters.");
@@ -52,9 +55,19 @@ DEFINE_string(certified_esdf_output_path, "",
 DEFINE_string(mesh_output_path, "", "File in which to save the surface mesh.");
 DEFINE_string(certified_mesh_output_path, "",
               "File in which to save the certified surface mesh.");
+DEFINE_string(transformed_certified_mesh_output_path, "",
+              "File in which to save the transformed certified surface mesh.");
 DEFINE_string(map_output_path, "", "File in which to save the serialized map.");
 DEFINE_string(trajectory_output_path, "",
               "File in which to save the trajectory.");
+
+// Intermediate output paths for evaluation
+DEFINE_string(inter_mesh_output_path, "", 
+              "Directory where intermediate surface meshes will be saved");
+DEFINE_string(inter_certified_mesh_output_path, "",
+              "Directory where intermediate certified surface meshes will be saved");
+DEFINE_string(inter_trajectory_output_path, "",
+              "Directory where intermediate trajectories will be saved");
 
 // Subsampling
 DEFINE_int32(projective_frame_subsampling, 0,
@@ -214,7 +227,18 @@ void Fuser::readCommandLineFlags() {
            .is_default) {
     LOG(INFO) << "Command line parameter found: certified_mesh_output_path = "
               << FLAGS_certified_mesh_output_path;
+                  setEsdfMode(Mapper::EsdfMode::k3D);
+    LOG(INFO) << "Enabling certified mapping";
+    mapper_->certified_mapping_enabled = true;
     certified_mesh_output_path_ = FLAGS_certified_mesh_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("transformed_certified_mesh_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: transformed_certified_mesh_output_path = "
+              << FLAGS_certified_mesh_output_path;
+                  setEsdfMode(Mapper::EsdfMode::k3D);
+    LOG(INFO) << "Enabling certified mapping";
+    transformed_certified_mesh_output_path_ = FLAGS_transformed_certified_mesh_output_path;
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("map_output_path").is_default) {
     LOG(INFO) << "Command line parameter found: map_output_path = "
@@ -227,6 +251,33 @@ void Fuser::readCommandLineFlags() {
               << FLAGS_trajectory_output_path;
     trajectory_output_path_ = FLAGS_trajectory_output_path;
   }
+
+
+  // 
+  // Intermediate steps gflags for evaluation
+  //
+
+  if (!gflags::GetCommandLineFlagInfoOrDie("inter_mesh_output_path").is_default) {
+    LOG(INFO) << "Command line parameter found: inter_mesh_output_path = "
+              << FLAGS_inter_mesh_output_path;
+    inter_mesh_output_path_ = FLAGS_inter_mesh_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("inter_certified_mesh_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: inter_certified_mesh_output_path = "
+              << FLAGS_inter_certified_mesh_output_path;
+                  // setEsdfMode(Mapper::EsdfMode::k3D);
+    LOG(INFO) << "Enabling certified mapping";
+    inter_certified_mesh_output_path_ = FLAGS_inter_certified_mesh_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("inter_trajectory_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: inter_trajectory_output_path = "
+              << FLAGS_inter_trajectory_output_path;
+    inter_trajectory_output_path_ = FLAGS_inter_trajectory_output_path;
+  }
+
+
   // Subsampling flags
   if (!gflags::GetCommandLineFlagInfoOrDie("projective_frame_subsampling")
            .is_default) {
@@ -425,7 +476,39 @@ void Fuser::readCommandLineFlags() {
   }
 }
 
+template<typename Scalar, int Dim, int Mode>
+std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, Mode>& transform) {
+    os << "Transform Matrix:\n" << transform.matrix();
+    return os;
+}
+
+Mesh Fuser::transformCertifiedMesh() {
+  LOG(INFO) << "Mesh Transformation: "
+              << T_L_Ckm1;
+
+  Mesh mesh = Mesh::fromLayer(mapper_->certified_mesh_layer());
+
+  Transform transformation = T_L_Ckm1_true * T_L_Ckm1.inverse();
+  Eigen::Matrix4f transformation_matrix = transformation.matrix().cast<float>();
+  Eigen::Matrix3f rotation_matrix = transformation.linear().cast<float>();
+
+  // Rototranslation
+  for (auto& vertex : mesh.vertices) {
+    Eigen::Vector4f homogeneous_vertex(vertex.x(), vertex.y(), vertex.z(), 1.0f);
+    Eigen::Vector4f transformed_vertex = transformation_matrix * homogeneous_vertex;
+    vertex = transformed_vertex.head<3>();
+  }
+
+  for (auto& normal : mesh.normals) {
+    Eigen::Vector3f transformed_normal = (rotation_matrix * normal).normalized();
+    normal = transformed_normal;
+  }
+
+  return mesh;
+}
+
 int Fuser::run() {
+
   LOG(INFO) << "Trying to integrate the first frame: ";
   if (!integrateFrames()) {
     LOG(FATAL)
@@ -451,7 +534,10 @@ int Fuser::run() {
     mapper_->generateCertifiedMesh();
     LOG(INFO) << "Outputting certified mesh ply file to "
               << certified_mesh_output_path_;
+
     outputCertifiedMeshPly();
+    Mesh mesh = transformCertifiedMesh();
+    outputTransformedCertifiedMeshPly(mesh);
   }
 
   if (!occupancy_output_path_.empty()) {
@@ -581,6 +667,9 @@ bool Fuser::integrateFrame(const int frame_number) {
     Transform T_Ckm1_Ck = T_Ckm1_Ck_true * T_pert;  // apply the perturbation
     T_L_Ck = T_L_Ckm1 * T_Ckm1_Ck;                  // estimated transform
 
+    LOG(INFO) << "Single Frame: "
+              << T_L_Ck;
+
     // save the perturbed trajectory
     trajectory_.push_back(T_L_Ck);
 
@@ -632,8 +721,43 @@ bool Fuser::integrateFrame(const int frame_number) {
 
   per_frame_timer.Stop();
 
+
+  //
+  // Intermediate step path check
+  //
+
+  std::ostringstream oss;
+  oss << std::setw(3) << std::setfill('0') << frame_number;
+  std::string frame_number_str = oss.str();
+  std::string trajectory_file = frame_number_str + ".txt";
+  std::string mesh_file = frame_number_str + "_mesh.ply";
+  std::string certi_mesh_file = frame_number_str + "_certi_mesh.ply";
+
+  if (!inter_trajectory_output_path_.empty()) {
+    LOG(INFO) << "Outputting intermediate perturbed trajectory to "
+              << inter_trajectory_output_path_;
+    outputInterTrajectoryToFile(trajectory_file);
+  }
+
+  if (!inter_mesh_output_path_.empty()) {
+    LOG(INFO) << "Generating intermediate meshes.";
+    mapper_->updateMesh();
+    LOG(INFO) << "Outputting intermediate mesh ply file to " << inter_mesh_output_path_;
+    outputInterMeshPly(mesh_file);
+  }
+
+  if (!inter_certified_mesh_output_path_.empty()) {
+    LOG(INFO) << "Generating intermediate meshes.";
+    mapper_->generateCertifiedMesh();
+    LOG(INFO) << "Outputting certified mesh ply file to "
+              << inter_certified_mesh_output_path_;
+    outputInterCertifiedMeshPly(certi_mesh_file);
+    transformCertifiedMesh();
+  }
+
   return true;
 }
+
 
 bool Fuser::integrateFrames() {
   int frame_number = 0;
@@ -693,6 +817,20 @@ bool Fuser::outputCertifiedMeshPly() {
                                   certified_mesh_output_path_);
 }
 
+bool Fuser::outputTransformedCertifiedMeshPly(Mesh& mesh) {
+  timing::Timer timer_write("fuser/transformed_certified_mesh/write");
+  io::PlyWriter writer(transformed_certified_mesh_output_path_);
+  writer.setPoints(&mesh.vertices);
+  writer.setTriangles(&mesh.triangles);
+  if (mesh.normals.size() > 0) {
+    writer.setNormals(&mesh.normals);
+  }
+  if (mesh.colors.size() > 0) {
+    writer.setColors(&mesh.colors);
+  }
+  return writer.write();
+}
+
 bool Fuser::outputTimingsToFile() {
   LOG(INFO) << "Writing timing to: " << timing_output_path_;
   std::ofstream timing_file(timing_output_path_);
@@ -709,6 +847,51 @@ bool Fuser::outputMapToFile() {
 bool Fuser::outputTrajectoryToFile() {
   timing::Timer timer_trajectory("fuser/trajectory/write");
   std::ofstream trajectory_file(trajectory_output_path_);
+  if (trajectory_file.is_open()) {
+    for (Transform& T : trajectory_) {
+      for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 4; col++) {
+          trajectory_file << std::fixed
+                          << std::setprecision(
+                                 std::numeric_limits<float>::max_digits10)
+                          << T(row, col);
+          if (row != 3 || col != 3) {
+            // dont print a separator if its the last element
+            trajectory_file << " ";
+          }
+        }
+      }
+      trajectory_file << std::endl;
+    }
+  } else {
+    throw std::runtime_error("could not open trajectory output file");
+    return false;
+  }
+  trajectory_file.close();
+  return true;
+}
+
+//
+// Intermediate output function definition
+//
+
+bool Fuser::outputInterMeshPly(const std::string& filename) {
+  timing::Timer timer_write("fuser/mesh/write");
+  std::string file_path = inter_mesh_output_path_ + "/" + filename;
+  return io::outputMeshLayerToPly(mapper_->mesh_layer(), file_path);
+}
+
+bool Fuser::outputInterCertifiedMeshPly(const std::string& filename) {
+  timing::Timer timer_write("fuser/cerfified_mesh/write");
+  std::string file_path = inter_certified_mesh_output_path_ + "/" + filename;
+  return io::outputMeshLayerToPly(mapper_->certified_mesh_layer(),
+                                  file_path);
+}
+
+bool Fuser::outputInterTrajectoryToFile(const std::string& filename) {
+  timing::Timer timer_trajectory("fuser/trajectory/write");
+  std::string file_path = inter_trajectory_output_path_ + "/" + filename;
+  std::ofstream trajectory_file(file_path);
   if (trajectory_file.is_open()) {
     for (Transform& T : trajectory_) {
       for (int row = 0; row < 4; row++) {

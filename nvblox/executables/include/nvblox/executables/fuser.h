@@ -34,8 +34,12 @@ limitations under the License.
 #include "nvblox/mesh/mesh_integrator.h"
 #include "nvblox/rays/sphere_tracer.h"
 #include "nvblox/utils/logging.h"
+#include "nvblox/mesh/mesh.h"
+#include "nvblox/io/mesh_io.h"
 
 #include <liegroups/liegroups.hpp>
+
+#include <Eigen/Dense>
 
 namespace nvblox {
 
@@ -50,6 +54,9 @@ class Fuser {
   // Runs an experiment
   int run();
 
+  template<typename Scalar, int Dim, int Mode>
+  friend std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, Mode>& transform);
+
   // Set various settings.
   void setVoxelSize(float voxel_size);
   void setProjectiveFrameSubsampling(int subsample);
@@ -63,6 +70,9 @@ class Fuser {
   bool integrateFrames();
   void updateEsdf();
 
+  // Transform certified mesh to align with ground truth
+  Mesh transformCertifiedMesh();
+
   // Output a pointcloud tsdf as PLY file.
   bool outputTsdfPointcloudPly();
   // Output a pointcloud occupancy as PLY file.
@@ -75,12 +85,19 @@ class Fuser {
   bool outputMeshPly();
   // Output a file with the certified mesh.
   bool outputCertifiedMeshPly();
+  // Output transformed certified mesh.
+  bool outputTransformedCertifiedMeshPly(Mesh&);
   // Output timings to a file
   bool outputTimingsToFile();
   // Output the serialized map to a file
   bool outputMapToFile();
   // Output the perturbed trajectory to a file
   bool outputTrajectoryToFile();
+
+  // Intermediate Output for evaluation 
+  bool outputInterMeshPly(const std::string&);
+  bool outputInterCertifiedMeshPly(const std::string&);
+  bool outputInterTrajectoryToFile(const std::string&);
 
   // Get the mapper (useful for experiments where we modify mapper settings)
   Mapper& mapper();
@@ -133,8 +150,14 @@ class Fuser {
   std::string occupancy_output_path_;
   std::string mesh_output_path_;
   std::string certified_mesh_output_path_;
+  std::string transformed_certified_mesh_output_path_;
   std::string map_output_path_;
   std::string trajectory_output_path_;
+
+  // Intermediate Output paths for evaluation 
+  std::string inter_mesh_output_path_;
+  std::string inter_certified_mesh_output_path_;
+  std::string inter_trajectory_output_path_;
 };
 
 }  //  namespace nvblox

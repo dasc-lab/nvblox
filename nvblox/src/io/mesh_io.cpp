@@ -42,11 +42,13 @@ bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
   return writer.write();
 }
 
+
 template <typename MeshBlockType>
 bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const char* filename) {
   return outputMeshLayerToPly(layer, std::string(filename));
 }
+
 
 // Explicit Instantiation
 template bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,
