@@ -498,14 +498,11 @@ Mesh Fuser::transformMesh(const Mesh& mesh, int frame_number) {
   // grab the true transform
   Transform T_L_Ck = true_trajectory_[frame_number];
 
-  // get the correcttion from est L to true L
+  // get the correction from est L to true L
   Transform T_L_L_est = T_L_Ck * T_L_Ck_est.inverse();
 
   // transform the mesh using the estimated transform
   Mesh transformed_mesh = transform_mesh(mesh, T_L_L_est);
-
-  // transform the mesh using the estimated transform
-  Mesh transformed_mesh = transform_mesh(mesh, T_L_Ck_est.inverse());
 
   return mesh;
 }
@@ -580,7 +577,7 @@ int Fuser::run() {
     // grab the mesh
     Mesh transformed_mesh = transformMesh(
         Mesh::fromLayer(mapper_->mesh_layer()), frame_number_ - 1);
-    LOG(INFO) << "writing transfomed mesh, to "
+    LOG(INFO) << "writing transformed mesh, to "
               << transformed_mesh_output_path_;
     io::outputMeshToPly(transformed_mesh, transformed_mesh_output_path_);
   }
@@ -596,7 +593,7 @@ int Fuser::run() {
     // grab the mesh
     Mesh transformed_certified_mesh = transformMesh(
         Mesh::fromLayer(mapper_->certified_mesh_layer()), frame_number_ - 1);
-    LOG(INFO) << "writing transfomed certified mesh, to "
+    LOG(INFO) << "writing transformed certified mesh, to "
               << transformed_certified_mesh_output_path_;
     io::outputMeshToPly(transformed_certified_mesh,
                         transformed_certified_mesh_output_path_);
