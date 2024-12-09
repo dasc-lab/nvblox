@@ -169,6 +169,9 @@ DataLoader::DataLoader(const std::string& base_path, bool multithreaded)
   } else {
     setup_success_ = false;
   }
+
+  // load full trajectory
+  load_trajectory();
 }
 
 std::unique_ptr<DataLoader> DataLoader::create(const std::string& base_path,
@@ -266,6 +269,33 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
 
   timer_file_pose.Stop();
   return DataLoadResult::kSuccess;
+}
+
+bool DataLoader::load_trajectory() {
+  // load the trajectory from the file
+  std::string trajectory_filepath =
+      replica::internal::getPathForTrajectory(base_path_);
+  std::ifstream trajectory_file(trajectory_filepath);
+
+  if (!trajectory_file.is_open()) {
+    std::cerr << "Error: could not open trajectory file " << trajectory_filepath
+              << std::endl;
+    return false;
+  }
+
+  true_trajectory_.clear();
+
+  std::string line;
+  while (std::getline(trajectory_file, line)) {
+    // process each line
+    Eigen::Matrix4f T_odom_cam;
+    replica::internal::readMatrixFromLine(line, &T_odom_cam);
+    Transform T_L_C = Eigen::Isometry3f(T_odom_cam);
+    true_trajectory_.push_back(T_L_C);
+  }
+
+  trajectory_file.close();
+  return true;
 }
 
 }  // namespace replica

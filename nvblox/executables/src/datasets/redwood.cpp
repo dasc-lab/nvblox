@@ -215,6 +215,8 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
   return DataLoadResult::kSuccess;
 }
 
+bool DataLoader::load_trajectory() { return false; }
+
 }  // namespace redwood
 }  // namespace datasets
 }  // namespace nvblox

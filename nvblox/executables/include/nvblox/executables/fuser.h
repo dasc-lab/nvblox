@@ -65,12 +65,16 @@ class Fuser {
   void setEsdfFrameSubsampling(int subsample);
   void setEsdfMode(Mapper::EsdfMode esdf_mode);
 
+  // create perturbed trajectory
+  bool create_perturbed_trajectory();
+
   // Integrate certain layers.
   bool integrateFrame(const int frame_number);
   bool integrateFrames();
   void updateEsdf();
 
-  // Transform certified mesh to align with ground truth
+  // Transform certified mesh to estimated body-fixed frame
+  Mesh transformMesh();
   Mesh transformCertifiedMesh();
 
   // Output a pointcloud tsdf as PLY file.
@@ -140,7 +144,11 @@ class Fuser {
   LieGroups::Matrix6f odometry_error_cov_ = LieGroups::Matrix6f::Zero();
   Transform T_L_Ckm1 = Transform::Identity();
   Transform T_L_Ckm1_true = Transform::Identity();
+  std::vector<Transform> true_trajectory_;
   std::vector<Transform> trajectory_;  // save the perturbed trajectory
+
+  // keep track of the frame number
+  int frame_number_ = 0;
 
   // Output paths
   std::string timing_output_path_;
@@ -149,6 +157,7 @@ class Fuser {
   std::string certified_esdf_output_path_;
   std::string occupancy_output_path_;
   std::string mesh_output_path_;
+  std::string transformed_mesh_output_path_;
   std::string certified_mesh_output_path_;
   std::string transformed_certified_mesh_output_path_;
   std::string map_output_path_;

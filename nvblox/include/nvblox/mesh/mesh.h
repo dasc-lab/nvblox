@@ -38,4 +38,7 @@ struct Mesh {
   static Mesh fromLayer(const BlockLayer<MeshBlockType>& layer);
 };
 
+// transforms a mesh represented in the old frame into the new frame
+Mesh transform_mesh(const Mesh& mesh, const Transform& T_new_old);
+
 }  // namespace nvblox

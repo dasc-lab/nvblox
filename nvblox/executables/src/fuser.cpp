@@ -53,6 +53,8 @@ DEFINE_string(esdf_output_path, "",
 DEFINE_string(certified_esdf_output_path, "",
               "File in which to save the Certified ESDF pointcloud.");
 DEFINE_string(mesh_output_path, "", "File in which to save the surface mesh.");
+DEFINE_string(transformed_mesh_output_path, "",
+              "File in which to save the transformed surface mesh.");
 DEFINE_string(certified_mesh_output_path, "",
               "File in which to save the certified surface mesh.");
 DEFINE_string(transformed_certified_mesh_output_path, "",
@@ -222,6 +224,13 @@ void Fuser::readCommandLineFlags() {
     LOG(INFO) << "Command line parameter found: mesh_output_path = "
               << FLAGS_mesh_output_path;
     mesh_output_path_ = FLAGS_mesh_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("transformed_mesh_output_path")
+           .is_default) {
+    LOG(INFO) << "Command line parameter found: transformed_mesh_output_path = "
+              << FLAGS_transformed_mesh_output_path;
+    setEsdfMode(Mapper::EsdfMode::k3D);
+    transformed_mesh_output_path_ = FLAGS_transformed_mesh_output_path;
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("certified_mesh_output_path")
            .is_default) {
@@ -482,32 +491,76 @@ std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, M
     return os;
 }
 
-Mesh Fuser::transformCertifiedMesh() {
-  LOG(INFO) << "Mesh Transformation: "
-              << T_L_Ckm1;
+Mesh Fuser::transformMesh() {
+  LOG(INFO) << "Transforming un-certified mesh into estimated body frame";
 
-  Mesh mesh = Mesh::fromLayer(mapper_->certified_mesh_layer());
+  // grab the certified mesh
+  Mesh mesh = Mesh::fromLayer(mapper_->mesh_layer());
 
-  Transform transformation = T_L_Ckm1_true * T_L_Ckm1.inverse();
-  Eigen::Matrix4f transformation_matrix = transformation.matrix().cast<float>();
-  Eigen::Matrix3f rotation_matrix = transformation.linear().cast<float>();
+  // grab the estimated transform that was just integrated
+  Transform T_L_Ck_est = trajectory_[frame_number_ - 1];
 
-  // Rototranslation
-  for (auto& vertex : mesh.vertices) {
-    Eigen::Vector4f homogeneous_vertex(vertex.x(), vertex.y(), vertex.z(), 1.0f);
-    Eigen::Vector4f transformed_vertex = transformation_matrix * homogeneous_vertex;
-    vertex = transformed_vertex.head<3>();
-  }
-
-  for (auto& normal : mesh.normals) {
-    Eigen::Vector3f transformed_normal = (rotation_matrix * normal).normalized();
-    normal = transformed_normal;
-  }
+  // transform the mesh using the estimated transform
+  Mesh transformed_mesh = transform_mesh(mesh, T_L_Ck_est.inverse());
 
   return mesh;
 }
 
+Mesh Fuser::transformCertifiedMesh() {
+  LOG(INFO) << "Transforming certified mesh into estimated body frame";
+
+  // grab the certified mesh
+  Mesh mesh = Mesh::fromLayer(mapper_->certified_mesh_layer());
+
+  // grab the estimated transform that was just integrated
+  Transform T_L_Ck_est = trajectory_[frame_number_ - 1];
+
+  // transform the mesh using the estimated transform
+  Mesh transformed_mesh = transform_mesh(mesh, T_L_Ck_est.inverse());
+
+  return mesh;
+}
+
+bool Fuser::create_perturbed_trajectory() {
+  // load the true trajectory
+  true_trajectory_ = data_loader_->get_true_trajectory();
+  std::size_t N = true_trajectory_.size();
+
+  trajectory_.clear();
+
+  // initalize perturbed trajectory at the correct point
+  trajectory_.push_back(true_trajectory_[0]);
+
+  // loop through and add perturbation
+  for (std::size_t k = 1; k < N; k++) {
+    // grab the true incremental pose
+    Transform T_L_Bk = true_trajectory_[k];
+    Transform T_L_Bkm1 = true_trajectory_[k - 1];
+    Transform T_Bk_Bkm1 = T_L_Bk.inverse() * T_L_Bkm1;
+
+    // create the perturbed increment
+    LieGroups::Vector6f tau = LieGroups::randn<float, 6>(odometry_error_cov_);
+    Transform T_pert = Transform(LieGroups::SE3::Exp(tau));
+    Transform T_Bk_Bkm1_est = T_Bk_Bkm1 * T_pert;
+
+    // grab the perturbed at the last frame
+    Transform T_L_Bkm1_est = trajectory_[k - 1];
+
+    // compute the new estimated transform
+    Transform T_L_Bk_est = T_L_Bkm1_est * T_Bk_Bkm1_est.inverse();
+
+    trajectory_.push_back(T_L_Bk_est);
+  }
+
+  return true;
+}
+
 int Fuser::run() {
+  // create the perturbed trajectory
+  if (!create_perturbed_trajectory()) {
+    LOG(FATAL) << "Failed to create perturbed trajectory";
+    return 1;
+  }
 
   LOG(INFO) << "Trying to integrate the first frame: ";
   if (!integrateFrames()) {
@@ -516,8 +569,15 @@ int Fuser::run() {
     return 1;
   }
 
+  LOG(INFO) << "DONE INTEGRATING FRAMES";
+
+  // print some of the paths
+  LOG(INFO) << "Trajectory output path: " << trajectory_output_path_;
+  LOG(INFO) << "Mesh Output path:     : " << mesh_output_path_;
+
   if (!trajectory_output_path_.empty()) {
     LOG(INFO) << "Outputting the perturbed trajectory to "
+
               << trajectory_output_path_;
     outputTrajectoryToFile();
   }
@@ -527,6 +587,11 @@ int Fuser::run() {
     mapper_->updateMesh();
     LOG(INFO) << "Outputting mesh ply file to " << mesh_output_path_;
     outputMeshPly();
+
+    Mesh transformed_mesh = transformMesh();
+    LOG(INFO) << "writing transfomed mesh, to "
+              << transformed_mesh_output_path_;
+    io::outputMeshToPly(transformed_mesh, transformed_mesh_output_path_);
   }
 
   if (!certified_mesh_output_path_.empty()) {
@@ -536,8 +601,10 @@ int Fuser::run() {
               << certified_mesh_output_path_;
 
     outputCertifiedMeshPly();
-    Mesh mesh = transformCertifiedMesh();
-    outputTransformedCertifiedMeshPly(mesh);
+
+    Mesh transformed_certified_mesh = transformCertifiedMesh();
+    io::outputMeshToPly(transformed_certified_mesh,
+                        transformed_certified_mesh_output_path_);
   }
 
   if (!occupancy_output_path_.empty()) {
@@ -640,8 +707,10 @@ bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer timer_file("fuser/file_loading");
   DepthImage depth_frame;
   ColorImage color_frame;
-  Transform T_L_Ck_true; // this is the true transform
-  Transform T_L_Ck;      // this is the estimated transform (due to odometry errors)
+  Transform T_L_Ck_true;  // this is the true transform
+
+  Transform T_L_Ck = trajectory_[frame_number];
+
   Camera camera;
   const datasets::DataLoadResult load_result =
       data_loader_->loadNext(&depth_frame, &T_L_Ck_true, &camera, &color_frame);
@@ -653,30 +722,6 @@ bool Fuser::integrateFrame(const int frame_number) {
   if (load_result == datasets::DataLoadResult::kNoMoreData) {
     LOG(INFO) << "No more data to load.";
     return false;  // Shows over folks
-  }
-
-  // Apply perturbations
-  {
-    timing::Timer perturbation_timer("fuser/add_perturbations");
-    // get the additional perturbation for this frame
-    LieGroups::Vector6f tau = LieGroups::randn<float, 6>(odometry_error_cov_);
-    Transform T_pert = Transform(LieGroups::SE3::Exp(tau));
-
-    // compose the errors
-    Transform T_Ckm1_Ck_true = T_L_Ckm1_true.inverse() * T_L_Ck_true;
-    Transform T_Ckm1_Ck = T_Ckm1_Ck_true * T_pert;  // apply the perturbation
-    T_L_Ck = T_L_Ckm1 * T_Ckm1_Ck;                  // estimated transform
-
-    LOG(INFO) << "Single Frame: "
-              << T_L_Ck;
-
-    // save the perturbed trajectory
-    trajectory_.push_back(T_L_Ck);
-
-    // log the distance between the transforms
-    LOG(INFO) << "transform dist: "
-              << (T_L_Ck.translation() - T_L_Ck_true.translation()).norm()
-              << " m";
   }
 
   timing::Timer per_frame_timer("fuser/time_per_frame");
@@ -715,10 +760,6 @@ bool Fuser::integrateFrame(const int frame_number) {
     }
   }
 
-  // shift the frames
-  T_L_Ckm1 = T_L_Ck; 
-  T_L_Ckm1_true = T_L_Ck_true;
-
   per_frame_timer.Stop();
 
 
@@ -726,48 +767,48 @@ bool Fuser::integrateFrame(const int frame_number) {
   // Intermediate step path check
   //
 
-  std::ostringstream oss;
-  oss << std::setw(3) << std::setfill('0') << frame_number;
-  std::string frame_number_str = oss.str();
-  std::string trajectory_file = frame_number_str + ".txt";
-  std::string mesh_file = frame_number_str + "_mesh.ply";
-  std::string certi_mesh_file = frame_number_str + "_certi_mesh.ply";
+  // std::ostringstream oss;
+  // oss << std::setw(3) << std::setfill('0') << frame_number;
+  // std::string frame_number_str = oss.str();
+  // std::string trajectory_file = frame_number_str + ".txt";
+  // std::string mesh_file = frame_number_str + "_mesh.ply";
+  // std::string certi_mesh_file = frame_number_str + "_certi_mesh.ply";
 
-  if (!inter_trajectory_output_path_.empty()) {
-    LOG(INFO) << "Outputting intermediate perturbed trajectory to "
-              << inter_trajectory_output_path_;
-    outputInterTrajectoryToFile(trajectory_file);
-  }
+  // if (!inter_trajectory_output_path_.empty()) {
+  //   LOG(INFO) << "Outputting intermediate perturbed trajectory to "
+  //             << inter_trajectory_output_path_;
+  //   outputInterTrajectoryToFile(trajectory_file);
+  // }
 
-  if (!inter_mesh_output_path_.empty()) {
-    LOG(INFO) << "Generating intermediate meshes.";
-    mapper_->updateMesh();
-    LOG(INFO) << "Outputting intermediate mesh ply file to " << inter_mesh_output_path_;
-    outputInterMeshPly(mesh_file);
-  }
+  // if (!inter_mesh_output_path_.empty()) {
+  //   LOG(INFO) << "Generating intermediate meshes.";
+  //   mapper_->updateMesh();
+  //   LOG(INFO) << "Outputting intermediate mesh ply file to " <<
+  //   inter_mesh_output_path_; outputInterMeshPly(mesh_file);
+  // }
 
-  if (!inter_certified_mesh_output_path_.empty()) {
-    LOG(INFO) << "Generating intermediate meshes.";
-    mapper_->generateCertifiedMesh();
-    LOG(INFO) << "Outputting certified mesh ply file to "
-              << inter_certified_mesh_output_path_;
-    outputInterCertifiedMeshPly(certi_mesh_file);
-    transformCertifiedMesh();
-  }
+  // if (!inter_certified_mesh_output_path_.empty()) {
+  //   LOG(INFO) << "Generating intermediate meshes.";
+  //   mapper_->generateCertifiedMesh();
+  //   LOG(INFO) << "Outputting certified mesh ply file to "
+  //             << inter_certified_mesh_output_path_;
+  //   outputInterCertifiedMeshPly(certi_mesh_file);
+  //   transformCertifiedMesh();
+  // }
 
   return true;
 }
 
 
 bool Fuser::integrateFrames() {
-  int frame_number = 0;
   LOG(INFO) << "Integrating " << num_frames_to_integrate_ << " frames.";
-  while (frame_number < num_frames_to_integrate_ &&
-         integrateFrame(frame_number++)) {
-    timing::mark("Frame " + std::to_string(frame_number - 1), Color::Red());
-    LOG(INFO) << "Integrating frame " << frame_number - 1;
+  while (frame_number_ < num_frames_to_integrate_ &&
+         integrateFrame(frame_number_++)) {
+    timing::mark("Frame " + std::to_string(frame_number_ - 1), Color::Red());
+    LOG(INFO) << "Integrating frame " << frame_number_ - 1;
   }
-  LOG(INFO) << "Ran out of data at frame: " << frame_number - 1;
+  LOG(INFO) << "Ran out of data at frame: " << frame_number_ - 1;
+
   return true;
 }
 
@@ -815,20 +856,6 @@ bool Fuser::outputCertifiedMeshPly() {
   timing::Timer timer_write("fuser/cerfified_mesh/write");
   return io::outputMeshLayerToPly(mapper_->certified_mesh_layer(),
                                   certified_mesh_output_path_);
-}
-
-bool Fuser::outputTransformedCertifiedMeshPly(Mesh& mesh) {
-  timing::Timer timer_write("fuser/transformed_certified_mesh/write");
-  io::PlyWriter writer(transformed_certified_mesh_output_path_);
-  writer.setPoints(&mesh.vertices);
-  writer.setTriangles(&mesh.triangles);
-  if (mesh.normals.size() > 0) {
-    writer.setNormals(&mesh.normals);
-  }
-  if (mesh.colors.size() > 0) {
-    writer.setColors(&mesh.colors);
-  }
-  return writer.write();
 }
 
 bool Fuser::outputTimingsToFile() {

@@ -71,4 +71,34 @@ Mesh Mesh::fromLayer(const BlockLayer<MeshBlockType>& layer) {
 template Mesh Mesh::fromLayer(const BlockLayer<MeshBlock>& layer);
 template Mesh Mesh::fromLayer(const BlockLayer<CertifiedMeshBlock>& layer);
 
+// transforms a mesh represented in the old frame into the new frame
+Mesh transform_mesh(const Mesh& mesh, const Transform& T_new_old) {
+  // create the new mesh
+  Mesh new_mesh;
+
+  // handle vertices
+  for (auto& vertex : mesh.vertices) {
+    Eigen::Vector3f new_vertex = T_new_old * vertex;
+    new_mesh.vertices.push_back(new_vertex);
+  }
+
+  // handle normals
+  for (auto& normal : mesh.normals) {
+    Eigen::Vector3f new_normal = T_new_old.linear() * normal;
+    new_mesh.normals.push_back(new_normal);
+  }
+
+  // handle triangles
+  for (auto& triangle : mesh.triangles) {
+    new_mesh.triangles.push_back(triangle);
+  }
+
+  // handle colors
+  for (auto& color : mesh.colors) {
+    new_mesh.colors.push_back(color);
+  }
+
+  return new_mesh;
+}
+
 }  // namespace nvblox

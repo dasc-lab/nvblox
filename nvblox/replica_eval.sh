@@ -54,9 +54,12 @@ DATASET_DIR="$HOME/data/Replica/office0"
 
 
 # Run the fuse_replica executable
-"${BUILD_DIR}/fuse_replica" "$DATASET_DIR" --mesh_output_path="${FINAL_RES_DIR}/mesh.ply" \
+"${BUILD_DIR}/fuse_replica" "$DATASET_DIR" \
+    --mesh_output_path="${FINAL_RES_DIR}/mesh.ply" \
+    --transformed_mesh_output_path="${FINAL_RES_DIR}/transformed_mesh.ply" \
     --certified_mesh_output_path="${FINAL_RES_DIR}/certi_mesh.ply" \
     --transformed_certified_mesh_output_path="${FINAL_RES_DIR}/transformed_certi_mesh.ply" \
-    --voxel_size=0.02 \
     --trajectory_output_path="${FINAL_RES_DIR}/trajectory.txt" \
-    --odometry_error_covariance=1e-4  > output.txt 2>&1
+    --voxel_size=0.02 \
+    --num_frames=2000 \
+    --odometry_error_covariance=1e-4 # > output.txt 2>&1
