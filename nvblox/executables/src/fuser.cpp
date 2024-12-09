@@ -491,29 +491,18 @@ std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, M
     return os;
 }
 
-Mesh Fuser::transformMesh() {
-  LOG(INFO) << "Transforming un-certified mesh into estimated body frame";
-
-  // grab the certified mesh
-  Mesh mesh = Mesh::fromLayer(mapper_->mesh_layer());
-
+Mesh Fuser::transformMesh(const Mesh& mesh, int frame_number) {
   // grab the estimated transform that was just integrated
-  Transform T_L_Ck_est = trajectory_[frame_number_ - 1];
+  Transform T_L_Ck_est = trajectory_[frame_number];
+
+  // grab the true transform
+  Transform T_L_Ck = true_trajectory_[frame_number];
+
+  // get the correcttion from est L to true L
+  Transform T_L_L_est = T_L_Ck * T_L_Ck_est.inverse();
 
   // transform the mesh using the estimated transform
-  Mesh transformed_mesh = transform_mesh(mesh, T_L_Ck_est.inverse());
-
-  return mesh;
-}
-
-Mesh Fuser::transformCertifiedMesh() {
-  LOG(INFO) << "Transforming certified mesh into estimated body frame";
-
-  // grab the certified mesh
-  Mesh mesh = Mesh::fromLayer(mapper_->certified_mesh_layer());
-
-  // grab the estimated transform that was just integrated
-  Transform T_L_Ck_est = trajectory_[frame_number_ - 1];
+  Mesh transformed_mesh = transform_mesh(mesh, T_L_L_est);
 
   // transform the mesh using the estimated transform
   Mesh transformed_mesh = transform_mesh(mesh, T_L_Ck_est.inverse());
@@ -588,7 +577,9 @@ int Fuser::run() {
     LOG(INFO) << "Outputting mesh ply file to " << mesh_output_path_;
     outputMeshPly();
 
-    Mesh transformed_mesh = transformMesh();
+    // grab the mesh
+    Mesh transformed_mesh = transformMesh(
+        Mesh::fromLayer(mapper_->mesh_layer()), frame_number_ - 1);
     LOG(INFO) << "writing transfomed mesh, to "
               << transformed_mesh_output_path_;
     io::outputMeshToPly(transformed_mesh, transformed_mesh_output_path_);
@@ -602,7 +593,11 @@ int Fuser::run() {
 
     outputCertifiedMeshPly();
 
-    Mesh transformed_certified_mesh = transformCertifiedMesh();
+    // grab the mesh
+    Mesh transformed_certified_mesh = transformMesh(
+        Mesh::fromLayer(mapper_->certified_mesh_layer()), frame_number_ - 1);
+    LOG(INFO) << "writing transfomed certified mesh, to "
+              << transformed_certified_mesh_output_path_;
     io::outputMeshToPly(transformed_certified_mesh,
                         transformed_certified_mesh_output_path_);
   }

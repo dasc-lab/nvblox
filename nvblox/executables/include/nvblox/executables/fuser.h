@@ -74,8 +74,7 @@ class Fuser {
   void updateEsdf();
 
   // Transform certified mesh to estimated body-fixed frame
-  Mesh transformMesh();
-  Mesh transformCertifiedMesh();
+  Mesh transformMesh(const Mesh& mesh, int frame_number);
 
   // Output a pointcloud tsdf as PLY file.
   bool outputTsdfPointcloudPly();
