@@ -43,6 +43,12 @@ class PlaneBenchmark {
   template <typename LayerType, typename VoxelType>
   void check(const LayerType& layer);
 
+  void check_esdf();
+
+  float compareEsdfToEsdf(const EsdfLayer& esdf_layer,
+                          const EsdfLayer& gt_layer, float error_threshold,
+                          bool test_voxels_with_negative_gt_distance);
+
   void run();
 
   // Test layer
@@ -147,6 +153,89 @@ void PlaneBenchmark::run() {
 
   LOG(INFO) << "Checking Certified TSDF";
   check<CertifiedTsdfLayer, CertifiedTsdfVoxel>(certified_tsdf_layer_);
+
+  // create esdf from the tsdf
+  check_esdf();
+}
+
+void PlaneBenchmark::check_esdf() {
+  // create the esdf_integraotr
+  EsdfIntegrator esdf_integrator;
+  esdf_integrator.max_distance_m(4.0f);
+  esdf_integrator.min_weight(1.0f);
+
+  EsdfLayer esdf_layer(voxel_size_m_, MemoryType::kUnified);
+
+  // run the integrator
+  esdf_integrator.integrateBlocks(tsdf_layer_, tsdf_layer_.getAllBlockIndices(),
+                                  &esdf_layer);
+
+  // get the ground truth esdf
+  EsdfLayer gt_esdf_layer(voxel_size_m_, MemoryType::kUnified);
+  esdf_integrator.integrateBlocks(
+      gt_tsdf_layer_, gt_tsdf_layer_.getAllBlockIndices(), &gt_esdf_layer);
+
+  // compare the two
+  float error_threshold = voxel_size_m_;  // TODO(dev): update this
+  float err_rate =
+      compareEsdfToEsdf(esdf_layer, gt_esdf_layer, error_threshold, false);
+}
+
+float PlaneBenchmark::compareEsdfToEsdf(
+    const EsdfLayer& esdf_layer, const EsdfLayer& gt_layer,
+    float error_threshold, bool test_voxels_with_negative_gt_distance) {
+  // Compare the layers
+  int total_num_voxels_observed = 0;
+  int num_voxels_over_threshold = 0;
+  float min_error = 1000.0f;
+  float max_error = -1000.0f;
+  for (const Index3D& block_index : esdf_layer.getAllBlockIndices()) {
+    const auto block_esdf = esdf_layer.getBlockAtIndex(block_index);
+    CHECK_NOTNULL(block_esdf.get());
+    const auto block_gt = gt_layer.getBlockAtIndex(block_index);
+    if (!block_esdf || !block_gt) {
+      continue;
+    }
+    for (int x = 0; x < VoxelBlock<TsdfVoxel>::kVoxelsPerSide; x++) {
+      for (int y = 0; y < VoxelBlock<TsdfVoxel>::kVoxelsPerSide; y++) {
+        for (int z = 0; z < VoxelBlock<TsdfVoxel>::kVoxelsPerSide; z++) {
+          float distance =
+              esdf_layer.voxel_size() *
+              std::sqrt(block_esdf->voxels[x][y][z].squared_distance_vox);
+          if (block_esdf->voxels[x][y][z].is_inside) {
+            distance = -distance;
+          }
+          float distance_gt =
+              esdf_layer.voxel_size() *
+              std::sqrt(block_gt->voxels[x][y][z].squared_distance_vox);
+          if (block_gt->voxels[x][y][z].is_inside) {
+            distance_gt = -distance_gt;
+          }
+          float diff = distance - distance_gt;
+          min_error = std::min(min_error, diff);
+          max_error = std::max(max_error, diff);
+
+          if (test_voxels_with_negative_gt_distance || distance_gt >= 0.0f) {
+            if (block_esdf->voxels[x][y][z].observed) {
+              ++total_num_voxels_observed;
+              if (std::abs(diff) > error_threshold) {
+                ++num_voxels_over_threshold;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  float error_rate =
+      static_cast<float>(num_voxels_over_threshold) / total_num_voxels_observed;
+  LOG(INFO) << "Num ESDF voxels observed: " << total_num_voxels_observed
+            << " over threshold: " << num_voxels_over_threshold;
+  LOG(INFO) << "error rate: " << error_rate * 100 << "%";
+  LOG(INFO) << "min_error: " << min_error;
+  LOG(INFO) << "max_error: " << max_error;
+
+  return error_rate;
 }
 
 template <typename LayerType, typename VoxelType>
