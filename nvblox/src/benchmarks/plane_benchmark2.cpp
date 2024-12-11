@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "nvblox/core/internal/warmup_cuda.h"
+#include "nvblox/integrators/certified_projective_tsdf_integrator.h"
 #include "nvblox/integrators/esdf_integrator.h"
 #include "nvblox/integrators/projective_tsdf_integrator.h"
 #include "nvblox/integrators/projective_tsdf_integrator_cpu.h"
@@ -59,8 +60,9 @@ class PlaneBenchmark {
   constexpr static float kDistanceErrorTolerance = kTruncationDistanceMeters;
 
   // TSDF Layers
-  TsdfLayer tsdf_layer_;
   TsdfLayer gt_tsdf_layer_;
+  TsdfLayer tsdf_layer_;
+  CertifiedTsdfLayer certified_tsdf_layer_;
 
   // How much error we expect on the surface
   constexpr static float surface_reconstruction_allowable_distance_error_vox_ =
@@ -82,8 +84,9 @@ class PlaneBenchmark {
 };
 
 PlaneBenchmark::PlaneBenchmark()
-    : tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
-      gt_tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
+    : gt_tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
+      tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
+      certified_tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
       camera_(Camera(fu_, fv_, cu_, cv_, width_, height_)) {
   // Create the scene
   scene_ = getSphereInBox();
@@ -97,8 +100,12 @@ void PlaneBenchmark::run() {
   // results!!
 
   // Create an integrator.
-  ProjectiveTsdfIntegrator integrator_gpu;
-  integrator_gpu.truncation_distance_vox(kTruncationDistanceVox);
+  ProjectiveTsdfIntegrator tsdf_integrator;
+  tsdf_integrator.truncation_distance_vox(kTruncationDistanceVox);
+
+  // Create a certified integrator.
+  CertifiedProjectiveTsdfIntegrator certified_tsdf_integrator;
+  certified_tsdf_integrator.truncation_distance_vox(kTruncationDistanceVox);
 
   // Simulate a trajectory of the requisite amount of points, on the circle
   // around the sphere.
@@ -130,11 +137,16 @@ void PlaneBenchmark::run() {
     scene_.generateDepthImageFromScene(camera_, T_S_C, kMaxDist, &depth_frame);
 
     // Integrate this depth image.
-    integrator_gpu.integrateFrame(depth_frame, T_S_C, camera_, &tsdf_layer_);
+    tsdf_integrator.integrateFrame(depth_frame, T_S_C, camera_, &tsdf_layer_);
+    certified_tsdf_integrator.integrateFrame(depth_frame, T_S_C, camera_,
+                                             &certified_tsdf_layer_);
   }
 
   LOG(INFO) << "Checking TSDF";
   check<TsdfLayer, TsdfVoxel>(tsdf_layer_);
+
+  LOG(INFO) << "Checking Certified TSDF";
+  check<CertifiedTsdfLayer, CertifiedTsdfVoxel>(certified_tsdf_layer_);
 }
 
 template <typename LayerType, typename VoxelType>
@@ -149,7 +161,7 @@ void PlaneBenchmark::check(const LayerType& layer) {
                     const VoxelType* voxel) {
     if (voxel->weight >= kMinWeight) {
       // Get the corresponding point from the GT layer.
-      const VoxelType* gt_voxel = getVoxelAtBlockAndVoxelIndex<VoxelType>(
+      const TsdfVoxel* gt_voxel = getVoxelAtBlockAndVoxelIndex<TsdfVoxel>(
           gt_tsdf_layer_, block_index, voxel_index);
       if (gt_voxel != nullptr) {
         float error = voxel->distance - gt_voxel->distance;
