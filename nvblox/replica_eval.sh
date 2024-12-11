@@ -62,4 +62,4 @@ DATASET_DIR="$HOME/data/Replica/office0"
     --trajectory_output_path="${FINAL_RES_DIR}/trajectory.txt" \
     --voxel_size=0.02 \
     --num_frames=2000 \
-    --odometry_error_covariance=1e-4 # > output.txt 2>&1
+    --odometry_error_covariance=1e-12 # > output.txt 2>&1
