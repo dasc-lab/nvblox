@@ -37,15 +37,30 @@ primitives::Scene getSphereInBox() {
 
 class PlaneBenchmark {
  public:
-  PlaneBenchmark()
-      : layer_(voxel_size_m_, MemoryType::kUnified),
-        camera_(Camera(fu_, fv_, cu_, cv_, width_, height_)) {}
+  PlaneBenchmark();
+
+  template <typename LayerType, typename VoxelType>
+  void check(const LayerType& layer);
 
   void run();
 
   // Test layer
   constexpr static float voxel_size_m_ = 0.02;
-  TsdfLayer layer_;
+  constexpr static float kTrajectoryRadius = 4.0f;
+  constexpr static float kTrajectoryHeight = 2.0f;
+  constexpr static int kNumTrajectoryPoints = 80;
+  constexpr static float kTruncationDistanceVox = 2;
+  constexpr static float kTruncationDistanceMeters =
+      kTruncationDistanceVox * voxel_size_m_;
+  // Maximum distance to consider for scene generation.
+  constexpr static float kMaxDist = 10.0;
+  constexpr static float kMinWeight = 1.0;
+  // Tolerance for error.
+  constexpr static float kDistanceErrorTolerance = kTruncationDistanceMeters;
+
+  // TSDF Layers
+  TsdfLayer tsdf_layer_;
+  TsdfLayer gt_tsdf_layer_;
 
   // How much error we expect on the surface
   constexpr static float surface_reconstruction_allowable_distance_error_vox_ =
@@ -61,27 +76,24 @@ class PlaneBenchmark {
   constexpr static float cu_ = static_cast<float>(width_) / 2.0f;
   constexpr static float cv_ = static_cast<float>(height_) / 2.0f;
   Camera camera_;
+
+  // Test scene
+  primitives::Scene scene_;
 };
 
+PlaneBenchmark::PlaneBenchmark()
+    : tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
+      gt_tsdf_layer_(voxel_size_m_, MemoryType::kUnified),
+      camera_(Camera(fu_, fv_, cu_, cv_, width_, height_)) {
+  // Create the scene
+  scene_ = getSphereInBox();
+}
+
 void PlaneBenchmark::run() {
-  constexpr float kTrajectoryRadius = 4.0f;
-  constexpr float kTrajectoryHeight = 2.0f;
-  constexpr int kNumTrajectoryPoints = 80;
-  constexpr float kTruncationDistanceVox = 2;
-  constexpr float kTruncationDistanceMeters =
-      kTruncationDistanceVox * voxel_size_m_;
-  // Maximum distance to consider for scene generation.
-  constexpr float kMaxDist = 10.0;
-  constexpr float kMinWeight = 1.0;
-
-  // Tolerance for error.
-  constexpr float kDistanceErrorTolerance = kTruncationDistanceMeters;
-
   // Get the ground truth SDF of a sphere in a box.
-  primitives::Scene scene = getSphereInBox();
-  TsdfLayer gt_tsdf_layer(voxel_size_m_, MemoryType::kUnified);
-  scene.generateLayerFromScene(kTruncationDistanceMeters, &gt_tsdf_layer);
-  // scene.generateLayerFromScene(5.0f, &gt_tsdf_layer); // this leads to wrong
+  // TsdfLayer gt_tsdf_layer(voxel_size_m_, MemoryType::kUnified);
+  scene_.generateLayerFromScene(kTruncationDistanceMeters, &gt_tsdf_layer_);
+  // scene.generateLayerFromScene(5.0f, &gt_tsdf_layer_); // this leads to wrong
   // results!!
 
   // Create an integrator.
@@ -97,10 +109,7 @@ void PlaneBenchmark::run() {
   DepthImage depth_frame(camera_.height(), camera_.width(),
                          MemoryType::kUnified);
 
-  // Two layers, one for CPU integration and one for GPU integration
-  // TsdfLayer layer_cpu(layer_.voxel_size(), MemoryType::kUnified);
-  TsdfLayer tsdf_layer(layer_.voxel_size(), MemoryType::kUnified);
-
+  // run through the trajectory
   for (size_t i = 0; i < kNumTrajectoryPoints; i++) {
     const float theta = radians_increment * i;
     // Convert polar to cartesian coordinates.
@@ -118,12 +127,18 @@ void PlaneBenchmark::run() {
     T_S_C.pretranslate(cartesian_coordinates);
 
     // Generate a depth image of the scene.
-    scene.generateDepthImageFromScene(camera_, T_S_C, kMaxDist, &depth_frame);
+    scene_.generateDepthImageFromScene(camera_, T_S_C, kMaxDist, &depth_frame);
 
     // Integrate this depth image.
-    integrator_gpu.integrateFrame(depth_frame, T_S_C, camera_, &tsdf_layer);
+    integrator_gpu.integrateFrame(depth_frame, T_S_C, camera_, &tsdf_layer_);
   }
 
+  LOG(INFO) << "Checking TSDF";
+  check<TsdfLayer, TsdfVoxel>(tsdf_layer_);
+}
+
+template <typename LayerType, typename VoxelType>
+void PlaneBenchmark::check(const LayerType& layer) {
   // Now do some checks...
   // Check every voxel in the map.
   int total_num_voxels = 0;
@@ -131,11 +146,11 @@ void PlaneBenchmark::run() {
   float min_error = 1000.0f;
   float max_error = -1000.0f;
   auto lambda = [&](const Index3D& block_index, const Index3D& voxel_index,
-                    const TsdfVoxel* voxel) {
+                    const VoxelType* voxel) {
     if (voxel->weight >= kMinWeight) {
       // Get the corresponding point from the GT layer.
-      const TsdfVoxel* gt_voxel = getVoxelAtBlockAndVoxelIndex<TsdfVoxel>(
-          gt_tsdf_layer, block_index, voxel_index);
+      const VoxelType* gt_voxel = getVoxelAtBlockAndVoxelIndex<VoxelType>(
+          gt_tsdf_layer_, block_index, voxel_index);
       if (gt_voxel != nullptr) {
         float error = voxel->distance - gt_voxel->distance;
         if (std::fabs(error) > kDistanceErrorTolerance) {
@@ -150,24 +165,25 @@ void PlaneBenchmark::run() {
 
   num_voxel_big_error = 0;
   total_num_voxels = 0;
-  callFunctionOnAllVoxels<TsdfVoxel>(tsdf_layer, lambda);
+  callFunctionOnAllVoxels<VoxelType>(layer, lambda);
   float percent_large_error = static_cast<float>(num_voxel_big_error) /
                               static_cast<float>(total_num_voxels) * 100.0f;
   // EXPECT_LT(percent_large_error, kAcceptablePercentageOverThreshold);
   std::cout << "  - num_voxel_big_error: " << num_voxel_big_error << std::endl;
-  std::cout << "  - total_num_voxels: " << total_num_voxels << std::endl;
+  std::cout << "  - total_num_voxels:    " << total_num_voxels << std::endl;
   std::cout << "  - percent_large_error: " << percent_large_error << "%"
             << std::endl;
-  std::cout << "  - min_error: " << min_error << std::endl;
-  std::cout << "  - max_error " << max_error << std::endl;
+  std::cout << "  - min_error:           " << min_error << std::endl;
+  std::cout << "  - max_error:           " << max_error << std::endl;
 
   if (false) {
-    io::outputVoxelLayerToPly(tsdf_layer, "test_tsdf_projective_gpu.ply");
-    io::outputVoxelLayerToPly(gt_tsdf_layer, "test_tsdf_projective_gt.ply");
+    io::outputVoxelLayerToPly(tsdf_layer_, "test_tsdf_projective_gpu.ply");
+    io::outputVoxelLayerToPly(gt_tsdf_layer_, "test_tsdf_projective_gt.ply");
   }
 }
 
 int main(int arg, char** argv) {
+  LOG(INFO) << "Starting Plane Benchmark";
   PlaneBenchmark benchmark;
 
   benchmark.run();
