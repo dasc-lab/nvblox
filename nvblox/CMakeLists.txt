@@ -284,6 +284,11 @@ endif()
 ###############
 add_subdirectory(experiments)
 
+#############
+# EVALUATIONS #
+#############
+add_subdirectory(evaluations)
+
 ##########
 # EXPORT #
 ##########
