@@ -150,7 +150,7 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
                                 &updated_blocks);
     }
 
-    // integrate the certfied tsdf layer
+    // integrate the certified tsdf layer
     {
       std::vector<Index3D> certified_updated_blocks;
       certified_tsdf_integrator.integrateFrame(
@@ -161,7 +161,7 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
 
       Transform T_Ck_Ckm1 = T_S_C.inverse() * prev_T_S_C_;
 
-      // TODO: run the deflation step too.
+      // deflation of certified tsdf layers
       tsdf_deflation_integrator.deflate(
         &certified_tsdf_layer_, T_S_C, T_Ck_Ckm1, odometry_error_cov_, n_std_); 
 
