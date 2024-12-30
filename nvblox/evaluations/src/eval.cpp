@@ -44,6 +44,7 @@ class PlaneEval {
   PlaneEval();
 
   void runBenchmark(const std::string& csv_output_path = "");
+  bool outputGtMesh(const std::string& ply_output_path);
   bool outputMesh(const std::string& ply_output_path);
   bool outputCertifiedMesh(const std::string& ply_output_path);
 
@@ -60,9 +61,11 @@ class PlaneEval {
   static constexpr float kMaxEnvironmentDimension = 7.0f;
 
   // Actual layers.
+  TsdfLayer gt_tsdf_layer_;
   TsdfLayer tsdf_layer_;
   CertifiedTsdfLayer certified_tsdf_layer_;
   EsdfLayer esdf_layer_;
+  MeshLayer gt_mesh_layer_;
   MeshLayer mesh_layer_;
   CertifiedMeshLayer certified_mesh_layer_;
 
@@ -77,16 +80,18 @@ class PlaneEval {
 
   // Deflation parameters.
   float n_std_ = 1.0;
-  float sigma_ = 0.0; // 1e-12
+  float sigma_ = 1e-5; // 1e-12
+  TransformCovariance Sigma_ = sigma_ * LieGroups::Matrix6f::Identity();
 
-  LieGroups::Matrix6f odometry_error_cov_ = sigma_ * LieGroups::Matrix6f::Identity();
   Transform prev_T_S_C_{};
 };
 
 PlaneEval::PlaneEval()
-    : tsdf_layer_(kVoxelSize, MemoryType::kDevice),
+    : gt_tsdf_layer_(kVoxelSize, MemoryType::kUnified),
+      tsdf_layer_(kVoxelSize, MemoryType::kDevice),
       certified_tsdf_layer_(kVoxelSize, MemoryType::kUnified),
       esdf_layer_(kVoxelSize, MemoryType::kUnified),
+      gt_mesh_layer_(kBlockSize, MemoryType::kUnified),
       mesh_layer_(kBlockSize, MemoryType::kUnified),
       certified_mesh_layer_(kBlockSize, MemoryType::kUnified),
       camera_(Camera(fu_, fv_, cu_, cv_, width_, height_)) {}
@@ -103,6 +108,7 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
   // Create an integrator with default settings.
   ProjectiveTsdfIntegrator integrator;
   CertifiedProjectiveTsdfIntegrator certified_tsdf_integrator;
+  MeshIntegrator gt_mesh_integrator;
   MeshIntegrator mesh_integrator;
   CertifiedMeshIntegrator certified_mesh_integrator;
   TsdfDeflationIntegrator tsdf_deflation_integrator;
@@ -122,6 +128,8 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
       Vector3f(0.0f, 0.0f, 5.0f), Vector3f(0.0f, 0.0f, 1.0f)
   ));
 
+  scene.generateLayerFromScene(7.0f, &gt_tsdf_layer_);
+
   // Create a depth frame. We share this memory buffer for the entire
   // trajectory.
   DepthImage depth_frame(camera_.height(), camera_.width(),
@@ -133,8 +141,8 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
     // Construct a transform from camera to scene with this.
     // Transform T_S_C_true;
     Transform T_S_C = Transform::Identity();
-    T_S_C.matrix()(0, 3) = -10.0 * i / kNumTrajectoryPoints; // move -x by 10 m
 
+    T_S_C.matrix()(0, 3) = -10.0 * i / kNumTrajectoryPoints; // move -x by 10 m
 
     LOG(INFO) << T_S_C.matrix(); 
 
@@ -163,7 +171,7 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
 
       // deflation of certified tsdf layers
       tsdf_deflation_integrator.deflate(
-        &certified_tsdf_layer_, T_S_C, T_Ck_Ckm1, odometry_error_cov_, n_std_); 
+        &certified_tsdf_layer_, T_S_C, T_Ck_Ckm1, Sigma_, n_std_); 
 
       prev_T_S_C_ = T_S_C;
 
@@ -189,16 +197,29 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
     // }
   }
 
+  // generate ground truth mesh
+  gt_mesh_integrator.integrateBlocksGPU(
+      gt_tsdf_layer_, gt_tsdf_layer_.getAllBlockIndices(),
+      &gt_mesh_layer_);
+
+
   // generate mesh from TSDF layer
   mesh_integrator.integrateBlocksGPU(
       tsdf_layer_, tsdf_layer_.getAllBlockIndices(),
       &mesh_layer_);
 
-      // generate mesh from the certified TSDF layer
+  // generate mesh from the certified TSDF layer
   certified_mesh_integrator.integrateBlocksGPU(
       certified_tsdf_layer_, certified_tsdf_layer_.getAllBlockIndices(),
       &certified_mesh_layer_);
 
+}
+
+
+//TODO : Add logic to add and save ground truth mesh
+bool PlaneEval::outputGtMesh(const std::string& ply_output_path) {
+  timing::Timer timer_write("gt_mesh/write");
+  return io::outputMeshLayerToPly(gt_mesh_layer_, ply_output_path);
 }
 
 bool PlaneEval::outputMesh(const std::string& ply_output_path) {
@@ -221,19 +242,22 @@ int main(int argc, char* argv[]) {
   nvblox::warmupCuda();
 
   // Explicitly state path of mesh and certified mesh
+  std::string output_gt_mesh_path = "./gt_mesh.ply";
   std::string output_mesh_path = "./mesh.ply";
   std::string output_certified_mesh_path = "./certified_mesh.ply";
 
   // Block to modify paths for storing meshes
-  if (argc >= 3) {
-    output_mesh_path = argv[1];
-    output_certified_mesh_path = argv[2];
+  if (argc >= 4) {
+    output_gt_mesh_path = argv[1];
+    output_mesh_path = argv[2];
+    output_certified_mesh_path = argv[3];
   }
 
   nvblox::PlaneEval benchmark;
   benchmark.runBenchmark("");
 
   if (!output_mesh_path.empty()) {
+    benchmark.outputGtMesh(output_gt_mesh_path);
     benchmark.outputMesh(output_mesh_path);
     benchmark.outputCertifiedMesh(output_certified_mesh_path);
   }
