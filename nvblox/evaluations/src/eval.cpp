@@ -88,7 +88,7 @@ class PlaneEval {
 
 PlaneEval::PlaneEval()
     : gt_tsdf_layer_(kVoxelSize, MemoryType::kUnified),
-      tsdf_layer_(kVoxelSize, MemoryType::kDevice),
+      tsdf_layer_(kVoxelSize, MemoryType::kUnified),
       certified_tsdf_layer_(kVoxelSize, MemoryType::kUnified),
       esdf_layer_(kVoxelSize, MemoryType::kUnified),
       gt_mesh_layer_(kBlockSize, MemoryType::kUnified),
@@ -117,18 +117,19 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
 
   // Define scene
   primitives::Scene scene;
-  
-  // Create a scene with a ground plane.
-  // scene.addGroundLevel(0.0f);
 
-  scene.addPrimitive(std::make_unique<primitives::Plane>(
-      Vector3f(1.0f, 0.0f, 0.0f), Vector3f(1.0f, 0.0f, 0.0f)
-  ));
+  scene.aabb() = AxisAlignedBoundingBox(Vector3f(-18.0f, -5.0f, 0.0f),
+                                        Vector3f(10.0f, 5.0f, 10.0f));
+
+  // scene.addPrimitive(std::make_unique<primitives::Plane>(
+  //     Vector3f(1.0f, 0.0f, 0.0f), Vector3f(1.0f, 0.0f, 0.0f)
+  // ));
     scene.addPrimitive(std::make_unique<primitives::Plane>(
       Vector3f(0.0f, 0.0f, 5.0f), Vector3f(0.0f, 0.0f, 1.0f)
   ));
 
-  scene.generateLayerFromScene(7.0f, &gt_tsdf_layer_);
+  // extract ground truth mesh from the scene
+  scene.generateLayerFromScene(10.0f, &gt_tsdf_layer_);
 
   // Create a depth frame. We share this memory buffer for the entire
   // trajectory.
@@ -149,6 +150,7 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
     // Generate a depth image of the scene.
     scene.generateDepthImageFromScene(
         camera_, T_S_C, 2 * kMaxEnvironmentDimension, &depth_frame);
+
 
     std::vector<Index3D> updated_blocks;
     // Integrate this depth image.
@@ -196,6 +198,8 @@ void PlaneEval::runBenchmark(const std::string& csv_output_path) {
     //                                   &esdf_layer_);
     // }
   }
+
+
 
   // generate ground truth mesh
   gt_mesh_integrator.integrateBlocksGPU(
