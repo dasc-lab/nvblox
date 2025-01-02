@@ -504,7 +504,7 @@ Mesh Fuser::transformMesh(const Mesh& mesh, int frame_number) {
   // transform the mesh using the estimated transform
   Mesh transformed_mesh = transform_mesh(mesh, T_L_L_est);
 
-  return mesh;
+  return transformed_mesh;
 }
 
 bool Fuser::create_perturbed_trajectory() {
@@ -718,17 +718,17 @@ bool Fuser::integrateFrame(const int frame_number) {
 
   timing::Timer per_frame_timer("fuser/time_per_frame");
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
-    timing::Timer timer_integrate("fuser/projective_integration");
-    mapper_->integrateDepth(depth_frame, T_L_Ck, camera);
-    timer_integrate.Stop();
-  }
-
-  if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
     timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
-    float n_std = 1.0;
+    float n_std = 100.0;
     mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std);
     timer_deflate.Stop();
     LOG(INFO) << "DOING DEFLATION!!";
+  }
+
+  if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
+    timing::Timer timer_integrate("fuser/projective_integration");
+    mapper_->integrateDepth(depth_frame, T_L_Ck, camera);
+    timer_integrate.Stop();
   }
 
   if ((frame_number + 1) % color_frame_subsampling_ == 0) {

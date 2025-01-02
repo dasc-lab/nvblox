@@ -62,4 +62,6 @@ DATASET_DIR="$HOME/data/Replica/office0"
     --trajectory_output_path="${FINAL_RES_DIR}/trajectory.txt" \
     --voxel_size=0.02 \
     --num_frames=2000 \
-    --odometry_error_covariance=1e-12 # > output.txt 2>&1
+    --odometry_error_covariance=1e-5 #> output.txt 2>&1
+
+python3 color_toggle_viz.py ./office0_mesh.ply ./results_eval/final_result/transformed_certi_mesh.ply

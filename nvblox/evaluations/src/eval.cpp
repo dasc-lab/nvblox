@@ -15,6 +15,8 @@ limitations under the License.
 */
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
 
 #include "nvblox/core/internal/warmup_cuda.h"
 #include "nvblox/integrators/certified_esdf_integrator.h"
@@ -165,10 +167,13 @@ namespace nvblox {
 
     // Initial transform from camera to scene.
     // Transform T_S_C_True;
-    Transform T_S_C = Transform::Identity();
 
     // Save True trajectories
     for  (size_t i = 0; i < kNumTrajectoryPoints; i++) {
+      
+      Transform T_S_C = Transform::Identity();
+
+      // T_S_C = T_S_C * Eigen::AngleAxisf((-i * M_PI/4) / kNumTrajectoryPoints, Eigen::Vector3f::UnitY());
 
       // Calculate trajectory
       T_S_C.matrix()(0, 3) = -30.0 * i / kNumTrajectoryPoints;
@@ -373,6 +378,9 @@ namespace nvblox {
 }  // namespace nvblox
 
 int main(int argc, char* argv[]) {
+
+  srand(time(0));
+
   google::InitGoogleLogging(argv[0]);
   FLAGS_alsologtostderr = true;
   google::InstallFailureSignalHandler();

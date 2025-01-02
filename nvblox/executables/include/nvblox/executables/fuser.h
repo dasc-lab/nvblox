@@ -141,8 +141,6 @@ class Fuser {
 
   // Odometry Error Params
   LieGroups::Matrix6f odometry_error_cov_ = LieGroups::Matrix6f::Zero();
-  Transform T_L_Ckm1 = Transform::Identity();
-  Transform T_L_Ckm1_true = Transform::Identity();
   std::vector<Transform> true_trajectory_;
   std::vector<Transform> trajectory_;  // save the perturbed trajectory
 
