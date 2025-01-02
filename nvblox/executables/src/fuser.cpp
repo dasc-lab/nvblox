@@ -719,7 +719,7 @@ bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer per_frame_timer("fuser/time_per_frame");
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
     timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
-    float n_std = 100.0;
+    float n_std = 1.0;
     mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std);
     timer_deflate.Stop();
     LOG(INFO) << "DOING DEFLATION!!";
