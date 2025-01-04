@@ -114,6 +114,9 @@ class Fuser {
   // Set the covariance matrix of the odometry error per frame
   bool setOdometryErrorCovariance(LieGroups::Matrix6f Sigma);
 
+  // Set the standard deviation
+  bool setStandardDeviation(float standard_deviation);
+
   // Dataset settings.
   int num_frames_to_integrate_ = std::numeric_limits<int>::max();
   std::unique_ptr<datasets::RgbdDataLoaderInterface> data_loader_;
@@ -140,6 +143,7 @@ class Fuser {
   std::unique_ptr<Mapper> mapper_;
 
   // Odometry Error Params
+  float n_std_ = 1.0;
   LieGroups::Matrix6f odometry_error_cov_ = LieGroups::Matrix6f::Zero();
   std::vector<Transform> true_trajectory_;
   std::vector<Transform> trajectory_;  // save the perturbed trajectory

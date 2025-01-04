@@ -139,6 +139,10 @@ DEFINE_double(odometry_error_covariance, 0.0,
             "A non-zero value means that the camera trajectory will be perturbed at each frame by a "
             "random zero-mean gaussian random vector with covariance = Identity * the value provided.");
  
+// Standard deviation
+DEFINE_double(standard_deviation, 1.0,
+            "Standard deviation for certified mesh generation.");
+
 namespace nvblox {
 
 Fuser::Fuser(std::unique_ptr<datasets::RgbdDataLoaderInterface>&& data_loader)
@@ -483,6 +487,18 @@ void Fuser::readCommandLineFlags() {
     bool suc = setOdometryErrorCovariance((float)FLAGS_odometry_error_covariance);
     if (!suc) { throw std::runtime_error("covariance not accepted"); }
   }
+
+  if (!gflags::GetCommandLineFlagInfoOrDie(
+          "standard_deviation").is_default) {
+    LOG(INFO)
+      << "Command line parameter found: standard_deviation = "
+      << FLAGS_standard_deviation;
+
+    // set the standard deviation
+    bool suc = setStandardDeviation((float)FLAGS_standard_deviation);
+    if (!suc) { throw std::runtime_error("standard deviation not accepted"); }
+  }
+  
 }
 
 template<typename Scalar, int Dim, int Mode>
@@ -699,6 +715,11 @@ bool Fuser::setOdometryErrorCovariance(LieGroups::Matrix6f Sigma) {
   return true;
 }
 
+bool Fuser::setStandardDeviation(float standard_deviation) {
+  n_std_ = standard_deviation;
+  return true;
+}
+
 bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer timer_file("fuser/file_loading");
   DepthImage depth_frame;
@@ -723,8 +744,7 @@ bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer per_frame_timer("fuser/time_per_frame");
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
     timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
-    float n_std = 1.0;
-    mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std);
+    mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std_);
     timer_deflate.Stop();
     LOG(INFO) << "DOING DEFLATION!!";
   }
