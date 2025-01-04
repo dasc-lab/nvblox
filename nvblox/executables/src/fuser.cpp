@@ -508,6 +508,10 @@ Mesh Fuser::transformMesh(const Mesh& mesh, int frame_number) {
 }
 
 bool Fuser::create_perturbed_trajectory() {
+
+  // set fixed seed for random generator
+  std::mt19937 gen(0);
+
   // load the true trajectory
   true_trajectory_ = data_loader_->get_true_trajectory();
   std::size_t N = true_trajectory_.size();
@@ -525,7 +529,7 @@ bool Fuser::create_perturbed_trajectory() {
     Transform T_Bk_Bkm1 = T_L_Bk.inverse() * T_L_Bkm1;
 
     // create the perturbed increment
-    LieGroups::Vector6f tau = LieGroups::randn<float, 6>(odometry_error_cov_);
+    LieGroups::Vector6f tau = LieGroups::randn<float, 6>(odometry_error_cov_, gen);
     Transform T_pert = Transform(LieGroups::SE3::Exp(tau));
     Transform T_Bk_Bkm1_est = T_Bk_Bkm1 * T_pert;
 
