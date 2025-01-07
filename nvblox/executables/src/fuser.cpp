@@ -62,6 +62,8 @@ DEFINE_string(transformed_certified_mesh_output_path, "",
 DEFINE_string(map_output_path, "", "File in which to save the serialized map.");
 DEFINE_string(trajectory_output_path, "",
               "File in which to save the trajectory.");
+DEFINE_string(output_dir_path, "", "Directory where all the ouput files will be stored.");
+DEFINE_string(working_mode, "BASELINE", "Modes: BASELINE, CERTIFIED and HEURISTIC");
 
 // Intermediate output paths for evaluation
 DEFINE_string(inter_mesh_output_path, "", 
@@ -142,6 +144,10 @@ DEFINE_double(odometry_error_covariance, 0.0,
 // Standard deviation
 DEFINE_double(standard_deviation, 1.0,
             "Standard deviation for certified mesh generation.");
+
+// Heuristic mode parameter
+DEFINE_double(clearing_radius, 3.0,
+            "Clearing radius mode for heuristic mode.");
 
 namespace nvblox {
 
@@ -263,6 +269,29 @@ void Fuser::readCommandLineFlags() {
     LOG(INFO) << "Command line parameter found: trajectory_output_path = "
               << FLAGS_trajectory_output_path;
     trajectory_output_path_ = FLAGS_trajectory_output_path;
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("output_dir_path")
+            .is_default) {
+    LOG(INFO) << "Command line parameter found: output_dir_path = "
+              << FLAGS_output_dir_path;
+
+    output_dir_path_ = FLAGS_output_dir_path;
+  }          
+  if (!gflags::GetCommandLineFlagInfoOrDie("working_mode")
+            .is_default) {
+    LOG(INFO) << "Command line parameter found: working_mode = "
+              << FLAGS_working_mode; 
+    working_mode_ = FLAGS_working_mode;
+
+    if (working_mode_ == "CERTIFIED") {
+      mapper_->certified_mapping_enabled = true;
+    }
+  }
+  if (!gflags::GetCommandLineFlagInfoOrDie("clearing_radius")
+            .is_default) {
+    LOG(INFO) << "Command line parameter found: clearing_radius = "
+              << FLAGS_clearing_radius;
+    clearing_radius_ = FLAGS_clearing_radius;
   }
 
 
@@ -562,6 +591,7 @@ bool Fuser::create_perturbed_trajectory() {
 }
 
 int Fuser::run() {
+
   // create the perturbed trajectory
   if (!create_perturbed_trajectory()) {
     LOG(FATAL) << "Failed to create perturbed trajectory";
@@ -576,10 +606,6 @@ int Fuser::run() {
   }
 
   LOG(INFO) << "DONE INTEGRATING FRAMES";
-
-  // print some of the paths
-  LOG(INFO) << "Trajectory output path: " << trajectory_output_path_;
-  LOG(INFO) << "Mesh Output path:     : " << mesh_output_path_;
 
   if (!trajectory_output_path_.empty()) {
     LOG(INFO) << "Outputting the perturbed trajectory to "
@@ -667,6 +693,85 @@ int Fuser::run() {
     outputMapToFile();
   }
 
+  // Execution with respect to selected user mode
+
+  if (!working_mode_.empty()) {
+
+    if (working_mode_ == "BASELINE") {
+
+      // Set mesh output path for BASELINE
+      mesh_output_path_ = output_dir_path_ + "/mesh.ply";
+      transformed_mesh_output_path_ = output_dir_path_ + "/transformed_mesh.ply";
+
+      LOG(INFO) << "Mode : BASELINE";
+      LOG(INFO) << "Generating the mesh.";
+      mapper_->updateMesh();
+
+      LOG(INFO) << "Outputting mesh ply file to " << mesh_output_path_;
+      outputMeshPly();
+
+      // Transform the mesh
+      Mesh transformed_mesh = transformMesh(
+        Mesh::fromLayer(mapper_->mesh_layer()), frame_number_ - 1);
+      LOG(INFO) << "writing transformed mesh, to "
+                << transformed_mesh_output_path_;
+      io::outputMeshToPly(transformed_mesh, transformed_mesh_output_path_);
+
+    }
+
+    if (working_mode_ == "CERTIFIED") {
+
+      // Set mesh output path for CERTIFIED
+      certified_mesh_output_path_ = output_dir_path_ + "/certified_mesh.ply";
+      transformed_certified_mesh_output_path_ = output_dir_path_ + "/transformed_certified_mesh.ply";
+
+      LOG(INFO) << "Mode : CERTIFIED";
+      LOG(INFO) << "Generating the certified mesh.";
+      mapper_->generateCertifiedMesh();
+
+      LOG(INFO) << "Outputting certifed mesh ply file to "
+                << certified_mesh_output_path_;
+      outputCertifiedMeshPly();
+
+      // Transform the certified emsh
+      Mesh transformed_certified_mesh = transformMesh(
+        Mesh::fromLayer(mapper_->certified_mesh_layer()), frame_number_ - 1);
+      LOG(INFO) << "writing transformed certified emsh. to "
+                << transformed_certified_mesh_output_path_;
+      io::outputMeshToPly(transformed_certified_mesh,
+                          transformed_certified_mesh_output_path_); 
+
+    }
+
+    if (working_mode_ == "HEURISTIC") {
+
+      // Set mesh output path for HEURISTIC
+      mesh_output_path_ = output_dir_path_ + "/heuristic_mesh.ply";
+      transformed_mesh_output_path_ = output_dir_path_ + "/transformed_heuristic_mesh.ply";
+
+      LOG(INFO) << "Mode : HEURISTIC";
+      LOG(INFO) << "Generating the heuristic mesh.";
+      mapper_->updateMesh();
+
+      LOG(INFO) << "Outputting heuristic mesh ply file to "
+                << mesh_output_path_;
+      outputMeshPly();
+
+      // Transform the heuristic mesh
+      Mesh transformed_heuristic_mesh = transformMesh(
+        Mesh::fromLayer(mapper_->mesh_layer()), frame_number_ - 1);
+      LOG(INFO) << "writing heuristic transformed certified mesh. to "
+                << transformed_mesh_output_path_;
+      io::outputMeshToPly(transformed_heuristic_mesh,
+                          transformed_mesh_output_path_);
+
+    }
+
+    // Trajectory output path
+    trajectory_output_path_ = output_dir_path_ + "/trajectory.txt";
+    outputTrajectoryToFile();
+
+  }
 
   LOG(INFO) << nvblox::timing::Timing::Print();
 
@@ -720,6 +825,7 @@ bool Fuser::setStandardDeviation(float standard_deviation) {
   return true;
 }
 
+
 bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer timer_file("fuser/file_loading");
   DepthImage depth_frame;
@@ -742,11 +848,27 @@ bool Fuser::integrateFrame(const int frame_number) {
   }
 
   timing::Timer per_frame_timer("fuser/time_per_frame");
-  if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
-    timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
-    mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std_);
-    timer_deflate.Stop();
-    LOG(INFO) << "DOING DEFLATION!!";
+
+  // Deflate only in certified mode
+  if (working_mode_ == "CERTIFIED") {
+    if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
+      timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
+      mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std_);
+      timer_deflate.Stop();
+      LOG(INFO) << "DOING DEFLATION!!";
+    }
+  } 
+
+  // Clear outside radius in heuristic mode
+  if (working_mode_ == "HEURISTIC") {
+    timing::Timer per_frame_timer("fuser/time_per_frame");
+    if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
+      timing::Timer timer_heuristic("fuser/heuristic_clear_radius");
+      Eigen::Vector3f center = T_L_Ck.translation();
+      mapper_->clearOutsideRadius(center, clearing_radius_);
+      timer_heuristic.Stop();
+      LOG(INFO) << "CLEARING RADIUS!!";
+    }
   }
 
   if ((frame_number + 1) % projective_frame_subsampling_ == 0) {

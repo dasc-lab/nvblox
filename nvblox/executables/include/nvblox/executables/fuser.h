@@ -57,6 +57,13 @@ class Fuser {
   template<typename Scalar, int Dim, int Mode>
   friend std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, Mode>& transform);
 
+  // Working modes
+  enum WorkingMode {
+    BASELINE,
+    HEURISTIC,
+    CERTIFIED
+  };
+
   // Set various settings.
   void setVoxelSize(float voxel_size);
   void setProjectiveFrameSubsampling(int subsample);
@@ -117,6 +124,9 @@ class Fuser {
   // Set the standard deviation
   bool setStandardDeviation(float standard_deviation);
 
+  // Set output directory default paths
+  bool setOutputDirDefaultPaths();
+
   // Dataset settings.
   int num_frames_to_integrate_ = std::numeric_limits<int>::max();
   std::unique_ptr<datasets::RgbdDataLoaderInterface> data_loader_;
@@ -151,6 +161,9 @@ class Fuser {
   // keep track of the frame number
   int frame_number_ = 0;
 
+  // heuristic mode parameter
+  float clearing_radius_ = 3.0;
+
   // Output paths
   std::string timing_output_path_;
   std::string tsdf_output_path_;
@@ -163,6 +176,8 @@ class Fuser {
   std::string transformed_certified_mesh_output_path_;
   std::string map_output_path_;
   std::string trajectory_output_path_;
+  std::string output_dir_path_;
+  std::string working_mode_;
 
   // Intermediate Output paths for evaluation 
   std::string inter_mesh_output_path_;
