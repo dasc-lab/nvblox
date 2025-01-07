@@ -283,8 +283,20 @@ void Fuser::readCommandLineFlags() {
               << FLAGS_working_mode; 
     working_mode_ = FLAGS_working_mode;
 
+    if (working_mode_ == "BASELINE") {
+      LOG(INFO) << "Execution mode is BASELINE";
+      exec_mode_ = Mode::BASELINE;
+    }
+
     if (working_mode_ == "CERTIFIED") {
+      LOG(INFO) << "Execution mode is CERTIFIED";
       mapper_->certified_mapping_enabled = true;
+      exec_mode_ = Mode::CERTIFIED;
+    }
+
+    if (working_mode_ == "HEURISTIC") {
+      LOG(INFO) << "Execution mode is HEURISTIC";
+      exec_mode_ = Mode::HEURISTIC;
     }
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("clearing_radius")
@@ -697,7 +709,7 @@ int Fuser::run() {
 
   if (!working_mode_.empty()) {
 
-    if (working_mode_ == "BASELINE") {
+    if (exec_mode_ == Mode::BASELINE) {
 
       // Set mesh output path for BASELINE
       mesh_output_path_ = output_dir_path_ + "/mesh.ply";
@@ -719,7 +731,7 @@ int Fuser::run() {
 
     }
 
-    if (working_mode_ == "CERTIFIED") {
+    if (exec_mode_ == Mode::CERTIFIED) {
 
       // Set mesh output path for CERTIFIED
       certified_mesh_output_path_ = output_dir_path_ + "/certified_mesh.ply";
@@ -743,7 +755,7 @@ int Fuser::run() {
 
     }
 
-    if (working_mode_ == "HEURISTIC") {
+    if (exec_mode_ == Mode::HEURISTIC) {
 
       // Set mesh output path for HEURISTIC
       mesh_output_path_ = output_dir_path_ + "/heuristic_mesh.ply";
@@ -850,7 +862,7 @@ bool Fuser::integrateFrame(const int frame_number) {
   timing::Timer per_frame_timer("fuser/time_per_frame");
 
   // Deflate only in certified mode
-  if (working_mode_ == "CERTIFIED") {
+  if (exec_mode_ == Mode::CERTIFIED) {
     if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
       timing::Timer timer_deflate("fuser/certified_tsdf_deflation");
       mapper_->deflateCertifiedTsdf(T_L_Ck, odometry_error_cov_, n_std_);
@@ -860,7 +872,7 @@ bool Fuser::integrateFrame(const int frame_number) {
   } 
 
   // Clear outside radius in heuristic mode
-  if (working_mode_ == "HEURISTIC") {
+  if (exec_mode_ == Mode::HEURISTIC) {
     timing::Timer per_frame_timer("fuser/time_per_frame");
     if ((frame_number + 1) % projective_frame_subsampling_ == 0) {
       timing::Timer timer_heuristic("fuser/heuristic_clear_radius");

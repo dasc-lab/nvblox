@@ -36,7 +36,7 @@ DATASET_DIR="$HOME/data/Replica/office0"
 
 "${BUILD_DIR}/fuse_replica" "$DATASET_DIR" \
     --output_dir_path="$EVAL_RES_DIR" \
-    --working_mode="CERTIFIED"\
+    --working_mode="HEURISTIC"\
     --voxel_size=0.02 \
     --num_frames=2000 \
     --standard_deviation=1 \

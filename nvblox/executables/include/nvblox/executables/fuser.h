@@ -58,11 +58,14 @@ class Fuser {
   friend std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, Mode>& transform);
 
   // Working modes
-  enum WorkingMode {
+  enum class Mode {
     BASELINE,
     HEURISTIC,
     CERTIFIED
   };
+
+  // Set default working mode to BASELINE
+  Mode exec_mode_ = Mode::BASELINE;
 
   // Set various settings.
   void setVoxelSize(float voxel_size);
