@@ -86,6 +86,9 @@ class Fuser {
   // Transform certified mesh to estimated body-fixed frame
   Mesh transformMesh(const Mesh& mesh, int frame_number);
 
+  // Get Transfom to convert to ground truth
+  Transform getGtTransform(int frame_number);
+
   // Output a pointcloud tsdf as PLY file.
   bool outputTsdfPointcloudPly();
   // Output a pointcloud occupancy as PLY file.
@@ -98,14 +101,14 @@ class Fuser {
   bool outputMeshPly();
   // Output a file with the certified mesh.
   bool outputCertifiedMeshPly();
-  // Output transformed certified mesh.
-  bool outputTransformedCertifiedMeshPly(Mesh&);
   // Output timings to a file
   bool outputTimingsToFile();
   // Output the serialized map to a file
   bool outputMapToFile();
   // Output the perturbed trajectory to a file
   bool outputTrajectoryToFile();
+  // Output the ground truth transform to a file
+  bool outputGtTransformToFile(Transform&);
 
   // Intermediate Output for evaluation 
   bool outputInterMeshPly(const std::string&);
@@ -179,6 +182,7 @@ class Fuser {
   std::string transformed_certified_mesh_output_path_;
   std::string map_output_path_;
   std::string trajectory_output_path_;
+  std::string gt_transform_output_path_;
   std::string output_dir_path_;
   std::string working_mode_;
 

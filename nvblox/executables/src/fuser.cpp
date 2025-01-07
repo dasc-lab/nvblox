@@ -564,6 +564,19 @@ Mesh Fuser::transformMesh(const Mesh& mesh, int frame_number) {
   return transformed_mesh;
 }
 
+Transform Fuser::getGtTransform(int frame_number) {
+  // grab the estimated transform that was just integrated
+  Transform T_L_Ck_est = trajectory_[frame_number];
+
+  // grab the true transform
+  Transform T_L_Ck = true_trajectory_[frame_number];
+
+  // get teh correction from est L to true L
+  Transform T_L_L_est = T_L_Ck * T_L_Ck_est.inverse();
+
+  return T_L_L_est;
+}
+
 bool Fuser::create_perturbed_trajectory() {
 
   // set fixed seed for random generator
@@ -738,7 +751,6 @@ int Fuser::run() {
       LOG(INFO) << "Outputting esdf ply file to " << esdf_output_path_;
       outputESDFPointcloudPly();
 
-
     }
 
     if (exec_mode_ == Mode::CERTIFIED) {
@@ -806,7 +818,13 @@ int Fuser::run() {
       LOG(INFO) << "Outputting heuristic esdf ply file to "
                 << esdf_output_path_;
       outputESDFPointcloudPly();
+      
     }
+
+    // Save ground truth transform
+    Transform Tf = std::move(getGtTransform(frame_number_ - 1));
+    gt_transform_output_path_ = output_dir_path_ + "/gt_transform.txt";
+    outputGtTransformToFile(Tf);
 
     // Trajectory output path
     trajectory_output_path_ = output_dir_path_ + "/trajectory.txt";
@@ -1071,6 +1089,32 @@ bool Fuser::outputTrajectoryToFile() {
     }
   } else {
     throw std::runtime_error("could not open trajectory output file");
+    return false;
+  }
+  trajectory_file.close();
+  return true;
+}
+
+bool Fuser::outputGtTransformToFile(Transform& Tf) {
+  timing::Timer timer_transform("fuser/gt_transform/write");
+  std::ofstream trajectory_file(gt_transform_output_path_);
+  if (trajectory_file.is_open()) {
+    for (int row = 0; row < 4; row++) {
+      for (int col = 0; col < 4; col++) {
+        trajectory_file << std::fixed
+                        << std::setprecision(
+                              std::numeric_limits<float>::max_digits10)
+                        << Tf(row, col);
+        if (row != 3 || col != 3) {
+          // dont print a separater if its the last element
+          trajectory_file << " ";
+        }
+      }
+    }
+    trajectory_file << std::endl;
+  }
+  else {
+    throw std::runtime_error("could not open ground truth transform file");
     return false;
   }
   trajectory_file.close();
