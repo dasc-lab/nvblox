@@ -729,6 +729,16 @@ int Fuser::run() {
                 << transformed_mesh_output_path_;
       io::outputMeshToPly(transformed_mesh, transformed_mesh_output_path_);
 
+      // Set esdf output path for BASELINE
+      esdf_output_path_ = output_dir_path_ + "/esdf.ply";
+      
+      LOG(INFO) << "Generating the esdf.";
+      updateEsdf();
+
+      LOG(INFO) << "Outputting esdf ply file to " << esdf_output_path_;
+      outputESDFPointcloudPly();
+
+
     }
 
     if (exec_mode_ == Mode::CERTIFIED) {
@@ -752,6 +762,16 @@ int Fuser::run() {
                 << transformed_certified_mesh_output_path_;
       io::outputMeshToPly(transformed_certified_mesh,
                           transformed_certified_mesh_output_path_); 
+
+      // Set esdf output path for CERTIFIED
+      certified_esdf_output_path_ = output_dir_path_ + "/certified_esdf.ply";
+
+      LOG(INFO) << "Generating the certified esdf.";
+      updateEsdf();
+
+      LOG(INFO) << "Outputting certified esdf ply file to "
+                << certified_esdf_output_path_;
+      outputCertifiedESDFPointcloudPly();
 
     }
 
@@ -777,6 +797,15 @@ int Fuser::run() {
       io::outputMeshToPly(transformed_heuristic_mesh,
                           transformed_mesh_output_path_);
 
+      // Set esdf output path for Heuristic
+      esdf_output_path_ = output_dir_path_ + "/heuristic_esdf.ply";
+
+      LOG(INFO) << "Generating the heuristic esdf.";
+      updateEsdf();
+
+      LOG(INFO) << "Outputting heuristic esdf ply file to "
+                << esdf_output_path_;
+      outputESDFPointcloudPly();
     }
 
     // Trajectory output path
