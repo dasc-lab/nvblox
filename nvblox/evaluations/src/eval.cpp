@@ -62,8 +62,9 @@ namespace nvblox {
     static constexpr float kBlockSize =
         VoxelBlock<TsdfVoxel>::kVoxelsPerSide * kVoxelSize;
 
-    // Set number of point in trajectory 
-    static constexpr int kNumTrajectoryPoints = 300;
+    // Set number of point in trajectory
+    static constexpr int kNumTrajectoryPoints = 30;
+    static constexpr float kDistanceTravelled = kNumTrajectoryPoints * 0.1;
 
     // Maximum dimension of the environment
     static constexpr float kMaxEnvironmentDimension = 7.0f;
@@ -123,6 +124,7 @@ namespace nvblox {
   constexpr float PlaneEval::kBlockSize;
   constexpr int PlaneEval::kNumTrajectoryPoints;
   constexpr float PlaneEval::kMaxEnvironmentDimension;
+  constexpr float PlaneEval::kDistanceTravelled;
 
   void PlaneEval::runBenchmark(const std::string& csv_output_path) {
     
@@ -176,7 +178,7 @@ namespace nvblox {
       // T_S_C = T_S_C * Eigen::AngleAxisf((-i * M_PI/4) / kNumTrajectoryPoints, Eigen::Vector3f::UnitY());
 
       // Calculate trajectory
-      T_S_C.matrix()(0, 3) = -30.0 * i / kNumTrajectoryPoints;
+      T_S_C.matrix()(0, 3) = -kDistanceTravelled * i / kNumTrajectoryPoints;
 
       // Save true trajectory
       true_trajectory_.push_back(T_S_C);
@@ -269,11 +271,11 @@ namespace nvblox {
           certified_esdf_blocks_to_update_.begin(),
           certified_esdf_blocks_to_update_.end());
 
-        esdf_integrator.integrateBlocks(
-          tsdf_layer_, esdf_blocks_to_update_vector,
-          &esdf_layer_);
+        // esdf_integrator.integrateBlocks(
+        //   tsdf_layer_, esdf_blocks_to_update_vector,
+        //   &esdf_layer_);
 
-        esdf_blocks_to_update_.clear();
+        // esdf_blocks_to_update_.clear();
 
         certified_esdf_integrator.integrateBlocks(
           certified_tsdf_layer_, certified_esdf_blocks_to_update_vector,
@@ -288,6 +290,8 @@ namespace nvblox {
 
     }
 
+    // regenerate the esdf
+    esdf_integrator.integrateLayer(tsdf_layer_, &esdf_layer_);
 
     // generate ground truth mesh
     gt_mesh_integrator.integrateBlocksGPU(
@@ -378,8 +382,8 @@ namespace nvblox {
 }  // namespace nvblox
 
 int main(int argc, char* argv[]) {
-
-  srand(time(0));
+  // srand(time(0));
+  srand(0);
 
   google::InitGoogleLogging(argv[0]);
   FLAGS_alsologtostderr = true;

@@ -30,6 +30,9 @@ def load_esdf_with_intensity(file_path):
 
     points = data[:, :3]
     intensity = data[:, 3]
+
+    print(f"loaded {points.shape[0]} points")
+
     return points, intensity
 
 
@@ -48,8 +51,9 @@ def apply_voxblox_colormap(intensity, truncation_distance=3):
     return colors
 
 
-def animate_slices_with_voxblox_colormap(points, intensity, mesh_file, truncation_distance=3.0, voxel_size=0.02, ax=2):
+def draw_slice(points, intensity, slice_z, mesh_file, truncation_distance=3.0, thickness=0.02, ax=2):
     """
+    Draw a single slice at the specified z
     Animate point cloud slices from bottom to top in the z direction,
     with the ground truth mesh overlayed and Voxblox-like colormap.
     """
@@ -63,16 +67,23 @@ def animate_slices_with_voxblox_colormap(points, intensity, mesh_file, truncatio
 
     print(f"min_z: {min_z}, max_z: {max_z}")
 
-    # Ensure slice height captures at least 2 points
-    unique_z = np.sort(np.unique(points[:, ax]))
-    if len(unique_z) > 1:
-        slice_height = voxel_size * 2.5
-    else:
-        raise ValueError("Point cloud does not have enough unique z-levels for slicing.")
+    # create slice
+    z_min = slice_z - thickness
+    z_max = slice_z + thickness 
 
-    # Create Open3D Visualizer
+    # Extract points within the slice
+    slice_mask = (points[:, ax] >= z_min) & (points[:, ax] < z_max)
+    slice_points = points[slice_mask]
+    slice_colors = colors[slice_mask]
+
+    slice_cloud = o3d.geometry.PointCloud()
+    slice_cloud.points = o3d.utility.Vector3dVector(slice_points)
+    slice_cloud.colors = o3d.utility.Vector3dVector(slice_colors)
+
+
+   # Create Open3D Visualizer
     vis = o3d.visualization.Visualizer()
-    vis.create_window(window_name="Point Cloud Slices Animation", width=800, height=600)
+    vis.create_window(window_name="Point Cloud Slice", width=800, height=600)
     # Load ground truth mesh
     if mesh_file:
       mesh = o3d.io.read_triangle_mesh(mesh_file)
@@ -80,51 +91,18 @@ def animate_slices_with_voxblox_colormap(points, intensity, mesh_file, truncatio
       vis.add_geometry(mesh)
 
     # Initialize point cloud for animation
-    slice_cloud = o3d.geometry.PointCloud()
     vis.add_geometry(slice_cloud)
 
-    def update_slice(slice_index):
-        """
-        Update function for each frame of the animation.
-        """
-        z_min = min_z + slice_index * slice_height
-        z_max = z_min + slice_height
-
-        # Extract points within the slice
-        slice_mask = (points[:, ax] >= z_min) & (points[:, ax] < z_max)
-        slice_points = points[slice_mask]
-        slice_colors = colors[slice_mask]
-
-        # Check if any points are in the slice
-        if len(slice_points) == 0:
-            print("len=0")
-            return  # Skip empty slices
-
-        # Update the slice point cloud
-        slice_cloud.points = o3d.utility.Vector3dVector(slice_points)
-        slice_cloud.colors = o3d.utility.Vector3dVector(slice_colors)
-
-        vis.update_geometry(slice_cloud)
-        vis.poll_events()
-        vis.update_renderer()
-
-    # Run animation
-    num_slices = int((max_z - min_z) / slice_height)
-
-    while True:
-        for slice_index in range(num_slices):
-            update_slice(slice_index)
-            time.sleep(0.1)
-
-    vis.destroy_window()
+    vis.run()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Animate ESDF point cloud slices with Voxblox-like colormap.")
     parser.add_argument("input_file", help="Path to the input ESDF .ply file (x, y, z, intensity).")
+    parser.add_argument("slice_z", type=float)
     parser.add_argument("--mesh_file", help="Path to the ground truth mesh file.")
     parser.add_argument("--truncation_distance", type=float, default=3.0, help="Truncation distance for ESDF visualization.")
-    parser.add_argument("--voxel_size", type=float, default=0.02, help="Voxel size at which ESDF was generated.")
+    parser.add_argument("--thickness", type=float, default=0.05, help="thickness of slce.")
     parser.add_argument("--ax", type=int, default=2, help="axis to slice in. 2 = z")
     
     args = parser.parse_args()
@@ -133,7 +111,9 @@ def main():
     points, intensity = load_esdf_with_intensity(args.input_file)
 
     # Animate slices with Voxblox-like colormap
-    animate_slices_with_voxblox_colormap(points, intensity, args.mesh_file, truncation_distance=args.truncation_distance, voxel_size=args.voxel_size, ax=args.ax)
+    draw_slice(points, intensity, args.slice_z, args.mesh_file, truncation_distance=args.truncation_distance, thickness=args.thickness, ax=args.ax)
+
+    input()
 
 
 if __name__ == "__main__":

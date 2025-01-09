@@ -166,8 +166,8 @@ TEST_F(IndexingTest, is_not_in_test) {
   // get all the neighbors
   std::vector<Index3D> neighbors = getNeighborIndices(index);
 
-  Index3D index1(-1, -1, -1);
-  Index3D index2(-2, -1, -1);
+  Index3D index1(-1, -1, -1);  // should be in the list of neighbors
+  Index3D index2(-2, -1, -1);  // should not be in the list of neighbors
 
   bool is_in_0 = is_not_in(neighbors, index);
   bool is_in_1 = is_not_in(neighbors, index1);
