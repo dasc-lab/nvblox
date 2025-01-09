@@ -117,7 +117,10 @@ void EsdfIntegrator::occupied_threshold(float occupied_threshold) {
 // Integrate the entire layer.
 void EsdfIntegrator::integrateLayer(const TsdfLayer& tsdf_layer,
                                     EsdfLayer* esdf_layer) {
+  // DEV: CHANGED TO INCLUDE THE BOUNDARY LAYER
   std::vector<Index3D> block_indices = tsdf_layer.getAllBlockIndices();
+  // std::vector<Index3D> block_indices =
+  // tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
 
   integrateBlocks(tsdf_layer, block_indices, esdf_layer);
 }
