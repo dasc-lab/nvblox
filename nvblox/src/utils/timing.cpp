@@ -267,15 +267,15 @@ void Timing::PrintMinimal(std::ostream& out) {
       // out << SecondsToTimeString(GetTotalSeconds(i)) << "\t";
       double meansec = GetMeanSeconds(i);
       double stddev = sqrt(GetVarianceSeconds(i));
-      out << SecondsToTimeString(1000 * meansec, "%09.2f") << " +- ";
-      out << SecondsToTimeString(1000 * stddev, "%09.2f") << ")\t";
+      out << SecondsToTimeString(1000 * meansec, "%03.2f") << " +- ";
+      out << SecondsToTimeString(1000 * stddev, "%03.2f") << "\t";
 
       double minsec = GetMinSeconds(i);
       double maxsec = GetMaxSeconds(i);
 
       // The min or max are out of bounds.
-      out << "[" << SecondsToTimeString(1000 * minsec, "%09.2f") << ","
-          << SecondsToTimeString(1000 * maxsec, "%09.2f") << "] ms";
+      out << "[" << SecondsToTimeString(1000 * minsec, "%03.2f") << ","
+          << SecondsToTimeString(1000 * maxsec, "%03.2f") << "] ms";
     }
     out << std::endl;
   }
