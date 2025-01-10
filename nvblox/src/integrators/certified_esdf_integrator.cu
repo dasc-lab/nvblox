@@ -115,14 +115,13 @@ void CertifiedEsdfIntegrator::occupied_threshold(float occupied_threshold) {
 }
 
 // Integrate the entire layer.
+// WARNING: Due to changes in integrateBlocks,  it is likely that the update methods wont work as well. 
+// It is recommended to run integrateLayer on the entire layer everytime
 void CertifiedEsdfIntegrator::integrateLayer(const CertifiedTsdfLayer& tsdf_layer,
                                     CertifiedEsdfLayer* esdf_layer) {
-  std::vector<Index3D> block_indices = tsdf_layer.getAllBlockIndices();
+
   std::vector<Index3D> block_indices_with_bl =
       tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
-
-  LOG(INFO) << "original: " << block_indices.size()
-            << " with bl: " << block_indices_with_bl.size();
 
   integrateBlocks(tsdf_layer, block_indices_with_bl, esdf_layer);
 }
@@ -153,9 +152,6 @@ void CertifiedEsdfIntegrator::integrateBlocks(const LayerType& layer,
   markAllSitesCombined(layer, block_indices, esdf_layer,
                        &updated_indices_device_, &to_clear_indices_device_);
   mark_timer.Stop();
-
-  LOG(INFO) << "updated indices size: " << updated_indices_device_.size()
-            << " to clear size: " << to_clear_indices_device_.size();
 
   if (!to_clear_indices_device_.empty()) {
     timing::Timer compute_timer("esdf/integrate/clear");

@@ -437,16 +437,16 @@ int main(int argc, char* argv[]) {
   benchmark.runBenchmark("");
 
   if (!output_mesh_path.empty()) {
-    //  benchmark.outputGtMesh(output_gt_mesh_path);
-    //  benchmark.outputMesh(output_mesh_path);
-    //  benchmark.outputTransformedMesh(output_transformed_mesh_path);
+    benchmark.outputGtMesh(output_gt_mesh_path);
+    benchmark.outputMesh(output_mesh_path);
+    benchmark.outputTransformedMesh(output_transformed_mesh_path);
     benchmark.outputCertifiedMesh(output_certified_mesh_path);
-    //  benchmark.outputTransformedCertifiedMesh(output_transformed_certified_mesh_path);
-    // benchmark.outputEsdf(output_esdf_path);
+    benchmark.outputTransformedCertifiedMesh(output_transformed_certified_mesh_path);
+    benchmark.outputEsdf(output_esdf_path);
     benchmark.outputCertifiedEsdf(output_certified_esdf_path);
-    //  benchmark.outputTsdf(output_tsdf_path);
-    //  benchmark.outputCertifiedTsdf(output_certified_tsdf_path);
-    //  benchmark.saveTrajectory(output_trajectory_path);
+    benchmark.outputTsdf(output_tsdf_path);
+    benchmark.outputCertifiedTsdf(output_certified_tsdf_path);
+    benchmark.saveTrajectory(output_trajectory_path);
   }
 
   std::cout << nvblox::timing::Timing::Print();
