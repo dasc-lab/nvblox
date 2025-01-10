@@ -1,5 +1,10 @@
 **/build
 
+## evaluation results
+*/eval_results/
+*/eval_results_backup*/
+nvblox/output.txt
+
 
 # Prerequisites
 *.d
