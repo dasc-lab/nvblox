@@ -140,11 +140,11 @@ def main():
 
     in_colors = np.zeros((len(interpolated_dists), 3))
 
-    pos_interpolated_dists = interpolated_dists[interpolated_dists >= 0]
+    pos_interpolated_dists = interpolated_dists[interpolated_dists >= 0.02]
     plt.hist(pos_interpolated_dists)
-    plt.show(block=False)
+    plt.show()
 
-    threshold_dist = 0.04
+    threshold_dist = 0.02
     with CodeTimer("create violating inds"):
         violating_inds = [i for i in range(N_gt_mesh_pts) if interpolated_dists[i] > threshold_dist ] 
     with CodeTimer("create non violating inds"):
