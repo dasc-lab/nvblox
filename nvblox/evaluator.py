@@ -1,56 +1,66 @@
 import argparse
 import numpy as np
 import open3d as o3d
-from scipy.interpolate import LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+
+from linetimer import CodeTimer
+
+from matplotlib import pyplot as plt
+
 
 
 def convert_mesh_to_pcd(file_path):
     """
     Load a .mesh file and convert it to point cloud
     """
-    mesh = o3d.io.read_triangle_mesh(file_path)
+    with CodeTimer("convert_mesh_to_pcd"):
+        with CodeTimer("convert_mesh_to_pcd/read triangles"):
+            mesh = o3d.io.read_triangle_mesh(file_path)
 
-    # Create a point cloud using the mesh's vertices
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = mesh.vertices
+        # Create a point cloud using the mesh's vertices
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = mesh.vertices
 
-    # If the mesh has vertex colors, add them to the point cloud
-    if mesh.has_vertex_colors():
-        pcd.colors = mesh.vertex_colors
+        # If the mesh has vertex colors, add them to the point cloud
+        if mesh.has_vertex_colors():
+            pcd.colors = mesh.vertex_colors
 
-    # If the mesh has vertex normals, add them to the point cloud
-    if mesh.has_vertex_normals():
-        pcd.normals = mesh.vertex_normals
+        # If the mesh has vertex normals, add them to the point cloud
+        if mesh.has_vertex_normals():
+            pcd.normals = mesh.vertex_normals
 
-    return pcd
+        return pcd
 
 
 def load_esdf_with_distance(file_path):
     """
     Load an ESDF .ply file and extract points (x, y, z) and intensity (distance).
     """
-    with open(file_path, "r") as f:
-        lines = f.readlines()
+    with CodeTimer("load_esdf/read_lines"):
+        with open(file_path, "r") as f:
+            lines = f.readlines()
 
-    header_ended = False
-    data_start_idx = 0
-    for i, line in enumerate(lines):
-        if "end_header" in line:
-            header_ended = True
-            data_start_idx = i + 1
-            break
+    with CodeTimer("load_esdf/parse_header"):
+        header_ended = False
+        data_start_idx = 0
+        for i, line in enumerate(lines):
+            if "end_header" in line:
+                header_ended = True
+                data_start_idx = i + 1
+                break
 
-    if not header_ended:
-        raise ValueError("The input file does not appear to be a valid .ply file.")
+        if not header_ended:
+            raise ValueError("The input file does not appear to be a valid .ply file.")
 
-    # Load the point data (x, y, z, intensity)
-    data = np.loadtxt(lines[data_start_idx:], dtype=float)
-    if data.shape[1] != 4:
-        raise ValueError("The input .ply file must have 4 columns: x, y, z, intensity.")
+    with CodeTimer("load_esdf/loadtxt"):
+        # Load the point data (x, y, z, intensity)
+        data = np.loadtxt(lines[data_start_idx:], dtype=float)
+        if data.shape[1] != 4:
+            raise ValueError("The input .ply file must have 4 columns: x, y, z, intensity.")
 
-    points = data[:, :3]
-    distances= data[:, 3]
-    return points, distances 
+        points = data[:, :3]
+        distances= data[:, 3]
+        return points, distances 
 
 def interpolate_distances_linear_nd(pcd, esdf_pcd, esdf_dists):
     """
@@ -64,22 +74,27 @@ def interpolate_distances_linear_nd(pcd, esdf_pcd, esdf_dists):
     Returns:
         np.ndarray: Interpolated distances for each point in `pcd`.
     """
-    # Extract ESDF points and distances
-    esdf_pts = np.asarray(esdf_pcd.points)
+    with CodeTimer("interpolate"):
+        with CodeTimer("interpolate/asarray"):
+            # Extract ESDF points and distances
+            esdf_pts = np.asarray(esdf_pcd.points)
+            # Extract target point cloud points
+            pcd_pts = np.asarray(pcd.points)
 
-    # Create a LinearNDInterpolator
-    interpolator = LinearNDInterpolator(esdf_pts, esdf_dists)
+        with CodeTimer("interpolate/construct"):
+            # Create a LinearNDInterpolator
+            # interpolator = LinearNDInterpolator(esdf_pts, esdf_dists)
+            interpolator = NearestNDInterpolator(esdf_pts, esdf_dists)
 
-    # Extract target point cloud points
-    pcd_pts = np.asarray(pcd.points)
+        with CodeTimer("interpolate/run_interpolator"):
+            # Interpolate distances for each point in the target cloud
+            interpolated_dists = interpolator(pcd_pts)
 
-    # Interpolate distances for each point in the target cloud
-    interpolated_dists = interpolator(pcd_pts)
+        with CodeTimer("interpolate/nan_to_num"):
+            # Handle any NaN values (points outside the convex hull of the ESDF)
+            interpolated_dists = np.nan_to_num(interpolated_dists, nan=0.0)
 
-    # Handle any NaN values (points outside the convex hull of the ESDF)
-    interpolated_dists = np.nan_to_num(interpolated_dists, nan=0.0)
-
-    return interpolated_dists
+        return interpolated_dists
 
 
 def vis_pcd_esdf(gt_pcd, esdf_pcd):
@@ -107,14 +122,15 @@ def main():
     esdf_pts, esdf_dists = load_esdf_with_distance(args.esdf_file)
 
     # Create ESDF point cloud
-    esdf_pcd = o3d.geometry.PointCloud()
-    esdf_pcd.points = o3d.utility.Vector3dVector(esdf_pts)
+    with CodeTimer("main/create_esdf_pcd"):
+        esdf_pcd = o3d.geometry.PointCloud()
+        esdf_pcd.points = o3d.utility.Vector3dVector(esdf_pts)
 
-    # Color ESDF based on distances
-    esdf_colors = np.zeros((len(esdf_dists), 3))  # Initialize color array
-    esdf_colors[esdf_dists >= 0] = [0, 1, 0]  # Green for distance >= 0
-    esdf_colors[esdf_dists < 0] = [1, 0, 0]   # Red for distance < 0
-    esdf_pcd.colors = o3d.utility.Vector3dVector(esdf_colors)
+        # Color ESDF based on distances
+        esdf_colors = np.zeros((len(esdf_dists), 3))  # Initialize color array
+        esdf_colors[esdf_dists >= 0] = [0, 1, 0]  # Green for distance >= 0
+        esdf_colors[esdf_dists < 0] = [1, 0, 0]   # Red for distance < 0
+        esdf_pcd.colors = o3d.utility.Vector3dVector(esdf_colors)
 
     # Interpolate distances for gound truth point cloud based on ESDF
     interpolated_dists = interpolate_distances_linear_nd(gt_mesh_pcd, esdf_pcd, esdf_dists)
@@ -124,9 +140,16 @@ def main():
 
     in_colors = np.zeros((len(interpolated_dists), 3))
 
-    violating_inds = [i for i in range(N_gt_mesh_pts) if interpolated_dists[i] >= 0.35 ] 
-    not_violating_inds = [i for i in range(N_gt_mesh_pts) if i not in violating_inds]
-    
+    pos_interpolated_dists = interpolated_dists[interpolated_dists >= 0]
+    plt.hist(pos_interpolated_dists)
+    plt.show(block=False)
+
+    threshold_dist = 0.04
+    with CodeTimer("create violating inds"):
+        violating_inds = [i for i in range(N_gt_mesh_pts) if interpolated_dists[i] > threshold_dist ] 
+    with CodeTimer("create non violating inds"):
+        not_violating_inds = [i for i in range(N_gt_mesh_pts) if interpolated_dists[i] <= threshold_dist ] 
+        # not_violating_inds = [i for i in range(N_gt_mesh_pts) if i not in violating_inds]
 
     N_violating = len(violating_inds)
     print(N_violating, N_gt_mesh_pts)
@@ -134,11 +157,12 @@ def main():
     print(max(interpolated_dists))
 
     
-    in_colors[violating_inds] = [0, 1, 0]
-    in_colors[not_violating_inds] = [1, 0.9, 0.9]
+    with CodeTimer("main/assign_colors"):
+        in_colors[violating_inds] = [0, 1, 0]
+        in_colors[not_violating_inds] = [1, 0.9, 0.9]
+        
+        gt_mesh_pcd.colors = o3d.utility.Vector3dVector(in_colors)
     
-    gt_mesh_pcd.colors = o3d.utility.Vector3dVector(in_colors)
-
     vis_pcd_esdf(gt_mesh_pcd, esdf_pcd)
 
 if  __name__ == "__main__":

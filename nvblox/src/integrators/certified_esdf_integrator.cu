@@ -115,11 +115,11 @@ void CertifiedEsdfIntegrator::occupied_threshold(float occupied_threshold) {
 }
 
 // Integrate the entire layer.
-// WARNING: Due to changes in integrateBlocks,  it is likely that the update methods wont work as well. 
-// It is recommended to run integrateLayer on the entire layer everytime
+// WARNING: Due to changes in integrateBlocks,  it is likely that the update
+// methods wont work as well. It is recommended to run integrateLayer on the
+// entire layer everytime
 void CertifiedEsdfIntegrator::integrateLayer(const CertifiedTsdfLayer& tsdf_layer,
                                     CertifiedEsdfLayer* esdf_layer) {
-
   std::vector<Index3D> block_indices_with_bl =
       tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
 

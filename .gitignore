@@ -3,7 +3,7 @@
 ## evaluation results
 */eval_results/
 */eval_results_backup*/
-nvblox/output.txt
+output*.txt
 
 
 # Prerequisites

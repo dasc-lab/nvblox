@@ -201,13 +201,12 @@ std::vector<Index3D> Mapper::updateEsdf() {
   }
 
   if (certified_mapping_enabled) {
-
     // while it would be nice to just update the blocks we want to update
-    // because of the Dev wrote the certified esdf integrator, it is safer to 
-    // update everything directly. 
-  // std::vector<Index3D> certified_esdf_blocks_to_update_vector(
-  //     certified_esdf_blocks_to_update_.begin(),
-  //     certified_esdf_blocks_to_update_.end());
+    // because of the Dev wrote the certified esdf integrator, it is safer to
+    // update everything directly.
+    // std::vector<Index3D> certified_esdf_blocks_to_update_vector(
+    //     certified_esdf_blocks_to_update_.begin(),
+    //     certified_esdf_blocks_to_update_.end());
     // certified_esdf_integrator_.integrateBlocks(
     //     layers_.get<CertifiedTsdfLayer>(),
     //     certified_esdf_blocks_to_update_vector,
@@ -217,9 +216,8 @@ std::vector<Index3D> Mapper::updateEsdf() {
 
     // now we update everything
     certified_esdf_integrator_.integrateLayer(
-      layers_.get<CertifiedTsdfLayer>(), 
-      layers_.getPtr<CertifiedEsdfLayer>()
-    );
+        layers_.get<CertifiedTsdfLayer>(),
+        layers_.getPtr<CertifiedEsdfLayer>());
   }
   // Mark blocks as updated
   esdf_blocks_to_update_.clear();
@@ -233,9 +231,8 @@ void Mapper::generateEsdf() {
   esdf_mode_ = EsdfMode::k3D;
 
   if (projective_layer_type_ == ProjectiveLayerType::kTsdf) {
-    esdf_integrator_.integrateLayer(
-        layers_.get<TsdfLayer>(), 
-        layers_.getPtr<EsdfLayer>());
+    esdf_integrator_.integrateLayer(layers_.get<TsdfLayer>(),
+                                    layers_.getPtr<EsdfLayer>());
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
     // TODO(someone): think about how to update when in occupancy mode
     esdf_integrator_.integrateBlocks(
@@ -254,8 +251,7 @@ void Mapper::generateEsdf() {
 std::vector<Index3D> Mapper::updateEsdfSlice(float slice_input_z_min,
                                              float slice_input_z_max,
                                              float slice_output_z) {
-
-                                              // WARNING: do not use with certified TSDFs
+  // WARNING: do not use with certified TSDFs
   CHECK(esdf_mode_ != EsdfMode::k3D)
       << "Currently, we limit computation of the ESDF to 2d *or* 3d. Not both.";
   esdf_mode_ = EsdfMode::k2D;

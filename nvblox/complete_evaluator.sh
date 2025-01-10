@@ -31,7 +31,7 @@ for i in {0..2}; do
         --working_mode="$WORKING_MODE" \
         --voxel_size=0.02 \
         --num_frames=2000 \
-        --standard_deviation=1 \
+        --standard_deviation=3 \
         --clearing_radius=3 \
         --odometry_error_covariance=1e-5 > output_$((i + 1)).txt 2>&1
     echo "Run #$((i + 1)) with working mode: $WORKING_MODE completed. Output logged to output_$((i + 1)).txt"

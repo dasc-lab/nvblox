@@ -441,7 +441,8 @@ int main(int argc, char* argv[]) {
     benchmark.outputMesh(output_mesh_path);
     benchmark.outputTransformedMesh(output_transformed_mesh_path);
     benchmark.outputCertifiedMesh(output_certified_mesh_path);
-    benchmark.outputTransformedCertifiedMesh(output_transformed_certified_mesh_path);
+    benchmark.outputTransformedCertifiedMesh(
+        output_transformed_certified_mesh_path);
     benchmark.outputEsdf(output_esdf_path);
     benchmark.outputCertifiedEsdf(output_certified_esdf_path);
     benchmark.outputTsdf(output_tsdf_path);
