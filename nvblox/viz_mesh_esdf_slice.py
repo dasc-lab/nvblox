@@ -36,15 +36,19 @@ def load_esdf_with_intensity(file_path):
     return points, intensity
 
 
-def apply_voxblox_colormap(intensity, truncation_distance=3):
+def apply_voxblox_colormap(intensity, min_dist = 0.0, max_dist = 3.0 ):
     """
     Apply Voxblox-like colormap for ESDF visualization.
     """
-    # Clamp intensity values to [0, truncation_distance]
-    intensity_clamped = np.clip(intensity, 0, truncation_distance)
+
+    print(np.unique(intensity))
+    # Clamp intensity values to [-truncation_distance, truncation_distance]
+    intensity_clamped = np.clip(intensity, min_dist, max_dist)
 
     # Normalize distances to [0, 1] range
-    normalized_dist = intensity_clamped / truncation_distance
+    normalized_dist = (intensity_clamped - min_dist) / (max_dist - min_dist)
+
+    print(normalized_dist)
 
     # Map normalized distances to viridis colormap
     colors = plt.cm.viridis(normalized_dist)[:, :3]  # Extract RGB (ignore alpha)
@@ -57,8 +61,11 @@ def draw_slice(points, intensity, slice_z, mesh_file, truncation_distance=3.0, t
     Animate point cloud slices from bottom to top in the z direction,
     with the ground truth mesh overlayed and Voxblox-like colormap.
     """
+
+    print("unique intensities: ", np.unique(intensity))
+
     # Apply Voxblox colormap
-    colors = apply_voxblox_colormap(intensity, truncation_distance)
+    colors = apply_voxblox_colormap(intensity, max_dist = truncation_distance)
 
 
     # Get z bounds of the point cloud

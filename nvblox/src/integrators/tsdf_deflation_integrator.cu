@@ -193,17 +193,7 @@ __global__ void deflateDistanceKernel(
   decrement_range[0] = std::min(decrement_range[0], decrement);
   decrement_range[1] = std::max(decrement_range[1], decrement);
 
-  // // set min and max decrememnts
-  // if (decrement < decrement_range[0])
-  // {
-  //   decrement_range[0] = decrement;
-  // }
-  // if (decrement > decrement_range[1])
-  // {
-  //   decrement_range[1] = decrement;
-  // }
-
-  // apply the decrement, but only to the correction, so that the estimated
+  // apply the decrement, but also to the correction, so that the estimated
   // distance isnt affected
   voxel_ptr->distance -= decrement;
   voxel_ptr->correction += decrement;

@@ -272,7 +272,7 @@ class CertifiedEsdfIntegrator {
 
   /// @brief CertifiedTsdfLayer related parameterx
   /// Minimum weight to consider a TSDF voxel observed.
-  float tsdf_min_weight_ = 1e-4;
+  float tsdf_min_weight_ = 0.01;
 
   /// @brief OccupancyLayer related parameter
   /// The log odds value greater than which we consider a voxel occupied
