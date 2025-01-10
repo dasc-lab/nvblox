@@ -1,3 +1,4 @@
+import json
 import argparse
 import numpy as np
 import open3d as o3d
@@ -113,6 +114,10 @@ def main():
         help="Path to the ground truth mesh file .mesh file (x, y, z, nx, ny, nz, red, green blue)")
     parser.add_argument("esdf_file", 
         help="Path to transformed esdf file .ply file (x, y, z, intensity)")
+    parser.add_argument("plot_path",
+        help="Path where plot will be saved with filename and extension")
+    parser.add_argument("json_path",
+        help="Path where JSON will be saved")
     args = parser.parse_args()
 
     # Load the ground truth mesh file as point cloud (no. of points = no. of vertices)
@@ -138,11 +143,20 @@ def main():
     N_gt_mesh_pts = len(gt_mesh_pcd.points)
     N_esdf_pts = len(esdf_pcd.points)
 
+    # Calculate ESDF points for volume calculation
+    vol_cal_ids = [i for i in range(N_esdf_pts) if esdf_dists[i] >= 0.0 ]
+    N_vol_cal_pts = len(vol_cal_ids)
+    vol =  (N_vol_cal_pts * 0.02) / 1000000
+    print(f"Total ESdf Points : {N_esdf_pts}")
+    print(f"Volument Cal Points : {N_vol_cal_pts}")
+    print(f"Volume : {vol}")
+
     in_colors = np.zeros((len(interpolated_dists), 3))
 
     pos_interpolated_dists = interpolated_dists[interpolated_dists >= 0.02]
     plt.hist(pos_interpolated_dists)
-    plt.show()
+    plt.savefig(args.plot_path)
+    #plt.show()
 
     threshold_dist = 0.02
     with CodeTimer("create violating inds"):
@@ -156,14 +170,27 @@ def main():
     print(1.0 * N_violating / N_gt_mesh_pts)
     print(max(interpolated_dists))
 
-    
+    data_dict = {
+        "NoViolating": N_violating,
+        "NoGtMeshPts": N_gt_mesh_pts,
+        "VioRate": 1.0 * N_violating / N_gt_mesh_pts,
+        "MaxVisDist": max(interpolated_dists),
+        "Volume": vol
+    }
+
+    json_obj = json.dumps(data_dict, indent=4)
+
+    with open(args.json_path, "w") as outfile:
+        outfile.write(json_obj)
+
     with CodeTimer("main/assign_colors"):
         in_colors[violating_inds] = [0, 1, 0]
         in_colors[not_violating_inds] = [1, 0.9, 0.9]
         
         gt_mesh_pcd.colors = o3d.utility.Vector3dVector(in_colors)
-    
-    vis_pcd_esdf(gt_mesh_pcd, esdf_pcd)
+
+    # Use following to visualize Point Cloud 
+    # vis_pcd_esdf(gt_mesh_pcd, esdf_pcd)
 
 if  __name__ == "__main__":
     main()

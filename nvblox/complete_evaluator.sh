@@ -1,5 +1,7 @@
 #!/bin/bash
 
+GT_MESH="./ground_truth_meshes"
+
 REPLICA_DATASET_NAMES=(
     "office0" 
     "office1" 
@@ -31,6 +33,9 @@ for j in {0..7}; do
     # Define dataset source directories
     BUILD_DIR="./build/executables"
     DATASET_DIR="$HOME/data/Replica/${REPLICA_DATASET_NAME}"
+
+    echo " "
+    echo "ENVIRONMENT ${REPLICA_DATASET_NAME}"
     
     # Define working modes
     WORKING_MODES=("BASELINE" "CERTIFIED" "HEURISTIC")
@@ -45,8 +50,8 @@ for j in {0..7}; do
             --output_dir_path="${EVAL_RES_DIR}" \
             --working_mode="$WORKING_MODE" \
             --voxel_size=0.02 \
-            --num_frames=10 \
-            --standard_deviation=3 \
+            --num_frames=2000 \
+            --standard_deviation=1 \
             --clearing_radius=3 \
             --odometry_error_covariance=1e-5 > ${OUTPUT_LOG_PATH} 2>&1
         echo "Run #$((i + 1)) with working mode: $WORKING_MODE completed. Output logged to ${OUTPUT_LOG_PATH}"
@@ -63,4 +68,26 @@ for j in {0..7}; do
     
     # do vis
     # python3 color_toggle_viz.py ./office4_mesh.ply ./eval_results/transformed_mesh.ply ./eval_results/transformed_certified_mesh.ply ./eval_results/transformed_heuristic_mesh.ply
+
+    echo "./"$EVAL_RES_DIR"/"$REPLICA_DATASET_NAME"_mesh.ply"
+
+    echo "Interpolating Transformed BASELINE ESDF"
+    python3 evaluator.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply  ./"$EVAL_RES_DIR"/transformed_esdf.ply ./"$EVAL_RES_DIR"/baseline_plot.png ./"$EVAL_RES_DIR"/baseline.json
+
+    echo "Interpolating Transformed CERTIFIED ESDF"
+    python3 evaluator.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply  ./"$EVAL_RES_DIR"/transformed_certified_esdf.ply ./"$EVAL_RES_DIR"/certified_plot.png ./"$EVAL_RES_DIR"/certified.json
+
+    echo "Interpolating Transformed HEURISTIC ESDF"
+    python3 evaluator.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply  ./"$EVAL_RES_DIR"/transformed_heuristic_esdf.ply ./"$EVAL_RES_DIR"/heuristic_plot.png ./"$EVAL_RES_DIR"/heuristic.json
+
+    echo "Saving BASELINE ESDF Slicing Visualization"
+    python3 save_slice.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply ./"$EVAL_RES_DIR"/transformed_esdf.ply --truncation_distance 0.5 --output_folder ./"$EVAL_RES_DIR/baseline_frames" --output_video ./"$EVAL_RES_DIR"/baseline.mp4
+
+    echo "Saving CERTIFIED ESDF Slicing Visualization"
+    python3 save_slice.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply ./"$EVAL_RES_DIR"/transformed_certified_esdf.ply --truncation_distance 0.5 --output_folder ./"$EVAL_RES_DIR/certified_frames" --output_video ./"$EVAL_RES_DIR"/certified.mp4
+
+    echo "Saving HEURISTIC ESDF Slicing Visualization"
+    python3 save_slice.py ./"$GT_MESH"/"$REPLICA_DATASET_NAME"_mesh.ply ./"$EVAL_RES_DIR"/transformed_heuristic_esdf.ply --truncation_distance 0.5 --output_folder ./"$EVAL_RES_DIR/heuristic_frames" --output_video ./"$EVAL_RES_DIR"/heuristic.mp4
+
+
 done
