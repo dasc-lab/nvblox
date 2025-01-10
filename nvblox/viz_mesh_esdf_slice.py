@@ -76,6 +76,9 @@ def draw_slice(points, intensity, slice_z, mesh_file, truncation_distance=3.0, t
     slice_points = points[slice_mask]
     slice_colors = colors[slice_mask]
 
+    slice_intensity = intensity[slice_mask]
+    print("slice intensity range: ", min(slice_intensity), max(slice_intensity))
+
     slice_cloud = o3d.geometry.PointCloud()
     slice_cloud.points = o3d.utility.Vector3dVector(slice_points)
     slice_cloud.colors = o3d.utility.Vector3dVector(slice_colors)

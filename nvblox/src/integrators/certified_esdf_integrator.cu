@@ -118,8 +118,13 @@ void CertifiedEsdfIntegrator::occupied_threshold(float occupied_threshold) {
 void CertifiedEsdfIntegrator::integrateLayer(const CertifiedTsdfLayer& tsdf_layer,
                                     CertifiedEsdfLayer* esdf_layer) {
   std::vector<Index3D> block_indices = tsdf_layer.getAllBlockIndices();
+  std::vector<Index3D> block_indices_with_bl =
+      tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
 
-  integrateBlocks(tsdf_layer, block_indices, esdf_layer);
+  LOG(INFO) << "original: " << block_indices.size()
+            << " with bl: " << block_indices_with_bl.size();
+
+  integrateBlocks(tsdf_layer, block_indices_with_bl, esdf_layer);
 }
 
 template <typename LayerType>
@@ -148,6 +153,9 @@ void CertifiedEsdfIntegrator::integrateBlocks(const LayerType& layer,
   markAllSitesCombined(layer, block_indices, esdf_layer,
                        &updated_indices_device_, &to_clear_indices_device_);
   mark_timer.Stop();
+
+  LOG(INFO) << "updated indices size: " << updated_indices_device_.size()
+            << " to clear size: " << to_clear_indices_device_.size();
 
   if (!to_clear_indices_device_.empty()) {
     timing::Timer compute_timer("esdf/integrate/clear");
@@ -282,49 +290,78 @@ __global__ void markAllSitesCombinedKernel(
       esdf_block = esdf_it->second;
     }
   }
-  __syncthreads();
-  if (block_ptr == nullptr || esdf_block == nullptr) {
+  // __syncthreads();
+  // if (block_ptr == nullptr || esdf_block == nullptr) {
+  //   return;
+  // }
+
+  if (esdf_block == nullptr) {
     return;
   }
 
-  // Get the correct voxel for this index.
-  const VoxelType* voxel_ptr =
-      &block_ptr->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
-  CertifiedEsdfVoxel* esdf_voxel =
-      &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
-  if (site_functor.isVoxelObserved(*voxel_ptr)) {
-    // Mark as inside if the voxel distance is negative.
-    const bool is_inside = site_functor.isVoxelInsideObject(*voxel_ptr);
-    if (esdf_voxel->is_inside && is_inside == false) {
-      clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-      to_clear = true;
-    }
-    esdf_voxel->is_inside = is_inside;
-    if (is_inside && site_functor.isVoxelNearSurface(*voxel_ptr)) {
-      esdf_voxel->is_site = true;
-      esdf_voxel->squared_distance_vox = 0.0f;
-      esdf_voxel->parent_direction.setZero();
-      updated = true;
-    } else {
-      if (esdf_voxel->is_site) {
-        esdf_voxel->is_site = false;
-        // This voxel needs to be cleared.
-        clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-        to_clear = true;
-      } else if (!esdf_voxel->observed) {
-        // This is a brand new voxel.
-        clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-      } else if (esdf_voxel->squared_distance_vox <= 1e-4) {
-        // This is an invalid voxel that should be cleared.
+  if (block_ptr == nullptr) {
+    // this block exists in the esdf layer but not the tsdf layer. so it should
+    // be marked as a site
+
+    // grab the voxel
+    CertifiedEsdfVoxel* esdf_voxel =
+        &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+    esdf_voxel->is_inside = true;
+    esdf_voxel->is_site = true;
+    esdf_voxel->squared_distance_vox = 0.0f;
+    esdf_voxel->parent_direction.setZero();
+    esdf_voxel->observed = true;
+    updated = true;
+
+  } else {
+    // Get the correct voxel for this index.
+    const VoxelType* voxel_ptr =
+        &block_ptr->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+    CertifiedEsdfVoxel* esdf_voxel =
+        &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+    if (site_functor.isVoxelObserved(*voxel_ptr)) {
+      // Mark as inside if the voxel distance is negative.
+      const bool is_inside = site_functor.isVoxelInsideObject(*voxel_ptr);
+      if (esdf_voxel->is_inside && is_inside == false) {
         clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
         to_clear = true;
       }
+      esdf_voxel->is_inside = is_inside;
+      if (is_inside && site_functor.isVoxelNearSurface(*voxel_ptr)) {
+        esdf_voxel->is_site = true;
+        esdf_voxel->squared_distance_vox = 0.0f;
+        esdf_voxel->parent_direction.setZero();
+        updated = true;
+      } else {
+        if (esdf_voxel->is_site) {
+          esdf_voxel->is_site = false;
+          // This voxel needs to be cleared.
+          clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
+          to_clear = true;
+        } else if (!esdf_voxel->observed) {
+          // This is a brand new voxel.
+          clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
+        } else if (esdf_voxel->squared_distance_vox <= 1e-4) {
+          // This is an invalid voxel that should be cleared.
+          clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
+          to_clear = true;
+        }
+      }
+      esdf_voxel->observed = true;
+    } else {
+      // default behaviour
+      // clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
+      // to_clear = true;
+      // esdf_voxel->observed = false;
+
+      // instead, mark it as a site
+      esdf_voxel->is_inside = true;
+      esdf_voxel->is_site = true;
+      esdf_voxel->squared_distance_vox = 0.0f;
+      esdf_voxel->parent_direction.setZero();
+      esdf_voxel->observed = true;
+      updated = true;
     }
-    esdf_voxel->observed = true;
-  } else {
-    clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-    to_clear = true;
-    esdf_voxel->observed = false;
   }
 
   __syncthreads();

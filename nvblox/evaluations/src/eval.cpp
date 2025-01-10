@@ -54,6 +54,8 @@ namespace nvblox {
     bool outputTransformedCertifiedMesh(const std::string& ply_output_path);
     bool outputEsdf(const std::string& ply_output_path);
     bool outputCertifiedEsdf(const std::string& ply_output_path);
+    bool outputTsdf(const std::string& ply_output_path);
+    bool outputCertifiedTsdf(const std::string& ply_output_path);
     bool saveTrajectory(const std::string& file_path);
 
   private:  
@@ -263,13 +265,13 @@ namespace nvblox {
 
       // Update ESDF 
       {
-        // Convert the set of EsdfBlocks needing an update to a vector
-        std::vector<Index3D> esdf_blocks_to_update_vector(
-          esdf_blocks_to_update_.begin(), esdf_blocks_to_update_.end());
-        
-        std::vector<Index3D> certified_esdf_blocks_to_update_vector(
-          certified_esdf_blocks_to_update_.begin(),
-          certified_esdf_blocks_to_update_.end());
+        // // Convert the set of EsdfBlocks needing an update to a vector
+        // std::vector<Index3D> esdf_blocks_to_update_vector(
+        //   esdf_blocks_to_update_.begin(), esdf_blocks_to_update_.end());
+
+        // std::vector<Index3D> certified_esdf_blocks_to_update_vector(
+        //   certified_esdf_blocks_to_update_.begin(),
+        //   certified_esdf_blocks_to_update_.end());
 
         // esdf_integrator.integrateBlocks(
         //   tsdf_layer_, esdf_blocks_to_update_vector,
@@ -277,12 +279,11 @@ namespace nvblox {
 
         // esdf_blocks_to_update_.clear();
 
-        certified_esdf_integrator.integrateBlocks(
-          certified_tsdf_layer_, certified_esdf_blocks_to_update_vector,
-          &certified_esdf_layer_);
+        // certified_esdf_integrator.integrateBlocks(
+        //   certified_tsdf_layer_, certified_esdf_blocks_to_update_vector,
+        //   &certified_esdf_layer_);
 
-        certified_esdf_blocks_to_update_.clear();
-  
+        // certified_esdf_blocks_to_update_.clear();
       }
 
       T_S_Ck_est_ = perturbed_trajectory_[i];
@@ -292,6 +293,8 @@ namespace nvblox {
 
     // regenerate the esdf
     esdf_integrator.integrateLayer(tsdf_layer_, &esdf_layer_);
+    certified_esdf_integrator.integrateLayer(certified_tsdf_layer_,
+                                             &certified_esdf_layer_);
 
     // generate ground truth mesh
     gt_mesh_integrator.integrateBlocksGPU(
@@ -348,13 +351,27 @@ namespace nvblox {
   }
 
   bool PlaneEval::outputEsdf(const std::string& ply_output_path) {
+    LOG(INFO) << "Writing ESDF";
     timing::Timer timer_write("esdf/write");
     return io::outputVoxelLayerToPly(esdf_layer_, ply_output_path);
   }
 
   bool PlaneEval::outputCertifiedEsdf(const std::string& ply_output_path) {
+    LOG(INFO) << "Writing Certified ESDF";
     timing::Timer timer_write("certified_esdf/write");
     return io::outputVoxelLayerToPly(certified_esdf_layer_, ply_output_path);
+  }
+
+  bool PlaneEval::outputTsdf(const std::string& ply_output_path) {
+    LOG(INFO) << "Writing TSDF";
+    timing::Timer timer_write("tsdf/write");
+    return io::outputVoxelLayerToPly(tsdf_layer_, ply_output_path);
+  }
+
+  bool PlaneEval::outputCertifiedTsdf(const std::string& ply_output_path) {
+    LOG(INFO) << "Writing Certified TSDF";
+    timing::Timer timer_write("certified_tsdf/write");
+    return io::outputVoxelLayerToPly(certified_tsdf_layer_, ply_output_path);
   }
 
   bool PlaneEval::saveTrajectory(const std::string& file_path) {
@@ -397,6 +414,8 @@ int main(int argc, char* argv[]) {
   std::string output_transformed_mesh_path = "./transformed_mesh.ply";
   std::string output_certified_mesh_path = "./certified_mesh.ply";
   std::string output_transformed_certified_mesh_path = "./transformed_certified_mesh.ply";
+  std::string output_tsdf_path = "./tsdf.ply";
+  std::string output_certified_tsdf_path = "./certified_tsdf.ply";
   std::string output_esdf_path = "./esdf.ply";
   std::string output_certified_esdf_path = "./certified_esdf.ply";
   std::string output_trajectory_path = "./trajectory.csv";
@@ -425,6 +444,8 @@ int main(int argc, char* argv[]) {
     benchmark.outputTransformedCertifiedMesh(output_transformed_certified_mesh_path);
     benchmark.outputEsdf(output_esdf_path);
     benchmark.outputCertifiedEsdf(output_certified_esdf_path);
+    benchmark.outputTsdf(output_tsdf_path);
+    benchmark.outputCertifiedTsdf(output_certified_tsdf_path);
     benchmark.saveTrajectory(output_trajectory_path);
   }
 
