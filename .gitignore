@@ -1,5 +1,10 @@
 **/build
 
+## evaluation results
+*/eval_results/
+*/eval_results_backup*/
+output*.txt
+
 
 # Prerequisites
 *.d

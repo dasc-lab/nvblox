@@ -129,6 +129,44 @@ std::vector<Index3D> BlockLayer<BlockType>::getAllBlockIndices() const {
 }
 
 template <typename BlockType>
+std::vector<Index3D>
+BlockLayer<BlockType>::getAllBlockIndicesWithBoundaryLayer() const {
+  // grab all the indices that already exist
+  std::vector<Index3D> indices = getAllBlockIndices();
+
+  std::vector<Index3D> extra_indices =
+      getBoundaryLayerAroundBlockIndices(indices);
+
+  // combine the two vectors and return
+  indices.insert(indices.end(), extra_indices.begin(), extra_indices.end());
+
+  return indices;
+}
+
+template <typename BlockType>
+std::vector<Index3D> BlockLayer<BlockType>::getBoundaryLayerAroundBlockIndices(
+    const std::vector<Index3D>& block_indices) const {
+  std::vector<Index3D> extra_indices;
+
+  // for each index, add the ones in each cardinal direction, but only if it is
+  // not already in indices list
+  for (const auto& index : block_indices) {
+    // get a list of neighbors for a specific index
+    std::vector<Index3D> neighbors = getNeighborIndices(index);
+
+    for (const Index3D& neighbor : neighbors) {
+      // check if it is already in the vector
+      if ((is_not_in(extra_indices, neighbor)) &&
+          (is_not_in(block_indices, neighbor))) {
+        extra_indices.push_back(neighbor);
+      }
+    }
+  }
+
+  return extra_indices;
+}
+
+template <typename BlockType>
 std::vector<BlockType*> BlockLayer<BlockType>::getAllBlockPointers() {
   std::vector<BlockType*> block_ptrs;
   block_ptrs.reserve(blocks_.size());

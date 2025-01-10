@@ -142,6 +142,42 @@ TEST_F(IndexingTest, getBlockAndVoxelIndexFromPositionInLayerRoundingErrors) {
   }
 }
 
+TEST_F(IndexingTest, getNeighbors) {
+  // create an index
+  Index3D index(0, 0, 0);
+
+  // get all the neighbors
+  std::vector<Index3D> neighbors = getNeighborIndices(index);
+
+  // // check the values
+  // for (auto n : neighbors) {
+  //   std::cout << n.transpose() << std::endl;
+  // }
+
+  // std::cout << "Length: " << neighbors.size() << std::endl;
+
+  EXPECT_TRUE(neighbors.size() == 26);
+}
+
+TEST_F(IndexingTest, is_not_in_test) {
+  // create an index
+  Index3D index(0, 0, 0);
+
+  // get all the neighbors
+  std::vector<Index3D> neighbors = getNeighborIndices(index);
+
+  Index3D index1(-1, -1, -1);  // should be in the list of neighbors
+  Index3D index2(-2, -1, -1);  // should not be in the list of neighbors
+
+  bool is_in_0 = is_not_in(neighbors, index);
+  bool is_in_1 = is_not_in(neighbors, index1);
+  bool is_in_2 = is_not_in(neighbors, index2);
+
+  EXPECT_TRUE(is_in_0);
+  EXPECT_FALSE(is_in_1);
+  EXPECT_TRUE(is_in_2);
+}
+
 int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   FLAGS_alsologtostderr = true;

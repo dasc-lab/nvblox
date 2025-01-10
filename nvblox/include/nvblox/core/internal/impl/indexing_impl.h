@@ -95,4 +95,29 @@ Vector3f getCenterPostionFromBlockIndexAndVoxelIndex(
          Vector3f(half_voxel_size, half_voxel_size, half_voxel_size);
 }
 
+std::vector<Index3D> getNeighborIndices(const Index3D& block_index) {
+  std::vector<Index3D> neighbors;
+  neighbors.reserve(26);
+  for (int dx : {-1, 0, 1}) {
+    for (int dy : {-1, 0, 1}) {
+      for (int dz : {-1, 0, 1}) {
+        if (dx != 0 || dy != 0 || dz != 0) {
+          Index3D delta(dx, dy, dz);
+          Index3D neighbor = block_index + delta;
+          neighbors.emplace_back(neighbor);
+        }
+      }
+    }
+  }
+
+  return neighbors;
+}
+
+//  Returns true if index is not in the vector indices.
+bool is_not_in(const std::vector<Index3D>& indices, const Index3D& index) {
+  // https://www.geeksforgeeks.org/check-if-vector-contains-given-element-in-cpp/
+  auto it = std::find(indices.begin(), indices.end(), index);
+  return it == indices.end();
+}
+
 }  // namespace nvblox

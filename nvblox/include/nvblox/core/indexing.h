@@ -48,6 +48,13 @@ __host__ __device__ inline Vector3f getCenterPostionFromBlockIndexAndVoxelIndex(
     const float block_size, const Index3D& block_index,
     const Index3D& voxel_index);
 
+// Get the neighbors of a Index3D
+inline std::vector<Index3D> getNeighborIndices(const Index3D& block_index);
+
+// check if a index3D is not in a vector of indices
+inline bool is_not_in(const std::vector<Index3D>& indices,
+                      const Index3D& index);
+
 }  // namespace nvblox
 
 #include "nvblox/core/internal/impl/indexing_impl.h"

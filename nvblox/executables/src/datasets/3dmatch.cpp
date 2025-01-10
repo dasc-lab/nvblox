@@ -236,6 +236,8 @@ DataLoadResult DataLoader::loadNext(DepthImage* depth_frame_ptr,
   return DataLoadResult::kSuccess;
 }
 
+bool DataLoader::load_trajectory() { return false; }
+
 }  // namespace threedmatch
 }  // namespace datasets
 }  // namespace nvblox

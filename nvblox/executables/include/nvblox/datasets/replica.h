@@ -58,6 +58,8 @@ class DataLoader : public RgbdDataLoaderInterface {
                           Camera* camera_ptr,           // NOLINT
                           ColorImage* color_frame_ptr = nullptr) override;
 
+  bool load_trajectory() override;
+
  protected:
   // Base path of the dataset
   const std::string base_path_;

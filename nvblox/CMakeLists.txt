@@ -196,6 +196,7 @@ add_library(nvblox_lib SHARED
     src/integrators/occupancy_decay_integrator.cu
     src/integrators/projective_occupancy_integrator.cu
     src/integrators/projective_tsdf_integrator.cu
+    src/integrators/projective_tsdf_integrator_cpu.cpp
     src/integrators/certified_projective_tsdf_integrator.cu
     src/integrators/projective_color_integrator.cu
     src/integrators/esdf_integrator.cu
@@ -262,6 +263,12 @@ target_link_libraries(sphere_benchmark
 )
 set_target_properties(sphere_benchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
+add_executable(plane_benchmark src/benchmarks/plane_benchmark2.cpp)
+target_link_libraries(plane_benchmark
+    nvblox_lib
+)
+set_target_properties(plane_benchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
 # Binaries for specific datasets
 add_subdirectory(executables)
 
@@ -283,6 +290,11 @@ endif()
 # EXPERIMENTS #
 ###############
 add_subdirectory(experiments)
+
+#############
+# EVALUATIONS #
+#############
+add_subdirectory(evaluations)
 
 ##########
 # EXPORT #

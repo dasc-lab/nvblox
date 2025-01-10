@@ -91,6 +91,6 @@ CudaMeshBlock::CudaMeshBlock(CertifiedMeshBlock* block) {
 
   vertices_size = block->vertices.size();
   triangles_size = block->triangles.size();
-}
+}// 
 
 }  // namespace nvblox

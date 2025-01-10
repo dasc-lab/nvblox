@@ -23,12 +23,7 @@ limitations under the License.
 namespace nvblox {
 namespace io {
 
-template <typename MeshBlockType>
-bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
-                          const std::string& filename) {
-  // TODO: doesn't support intensity yet!!!!
-  const Mesh mesh = Mesh::fromLayer(layer);
-
+bool outputMeshToPly(const Mesh& mesh, const std::string& filename) {
   // Create the ply writer object
   io::PlyWriter writer(filename);
   writer.setPoints(&mesh.vertices);
@@ -44,9 +39,29 @@ bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
 
 template <typename MeshBlockType>
 bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
+                          const std::string& filename) {
+  // TODO: doesn't support intensity yet!!!!
+  const Mesh mesh = Mesh::fromLayer(layer);
+  // Create the ply writer object
+  io::PlyWriter writer(filename);
+  writer.setPoints(&mesh.vertices);
+  writer.setTriangles(&mesh.triangles);
+  if (mesh.normals.size() > 0) {
+    writer.setNormals(&mesh.normals);
+  }
+  if (mesh.colors.size() > 0) {
+    writer.setColors(&mesh.colors);
+  }
+  return writer.write();
+}
+
+
+template <typename MeshBlockType>
+bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const char* filename) {
   return outputMeshLayerToPly(layer, std::string(filename));
 }
+
 
 // Explicit Instantiation
 template bool outputMeshLayerToPly(const BlockLayer<MeshBlock>& layer,

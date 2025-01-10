@@ -18,6 +18,7 @@ limitations under the License.
 #include <string>
 
 #include "nvblox/map/layer.h"
+#include "nvblox/mesh/mesh.h"
 #include "nvblox/mesh/mesh_block.h"
 
 namespace nvblox {
@@ -38,6 +39,8 @@ bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
 template <typename MeshBlockType>
 bool outputMeshLayerToPly(const BlockLayer<MeshBlockType>& layer,
                           const char* filename);
+
+bool outputMeshToPly(const Mesh& mesh, const std::string& filename);
 
 }  // namespace io
 }  // namespace nvblox

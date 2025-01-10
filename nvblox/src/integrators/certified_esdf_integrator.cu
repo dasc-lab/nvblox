@@ -115,11 +115,15 @@ void CertifiedEsdfIntegrator::occupied_threshold(float occupied_threshold) {
 }
 
 // Integrate the entire layer.
+// WARNING: Due to changes in integrateBlocks,  it is likely that the update
+// methods wont work as well. It is recommended to run integrateLayer on the
+// entire layer everytime
 void CertifiedEsdfIntegrator::integrateLayer(const CertifiedTsdfLayer& tsdf_layer,
                                     CertifiedEsdfLayer* esdf_layer) {
-  std::vector<Index3D> block_indices = tsdf_layer.getAllBlockIndices();
+  std::vector<Index3D> block_indices_with_bl =
+      tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
 
-  integrateBlocks(tsdf_layer, block_indices, esdf_layer);
+  integrateBlocks(tsdf_layer, block_indices_with_bl, esdf_layer);
 }
 
 template <typename LayerType>
@@ -282,53 +286,54 @@ __global__ void markAllSitesCombinedKernel(
       esdf_block = esdf_it->second;
     }
   }
+
   __syncthreads();
-  if (block_ptr == nullptr || esdf_block == nullptr) {
+  if (esdf_block == nullptr) {
     return;
   }
 
-  // Get the correct voxel for this index.
-  const VoxelType* voxel_ptr =
-      &block_ptr->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
-  CertifiedEsdfVoxel* esdf_voxel =
-      &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
-  if (site_functor.isVoxelObserved(*voxel_ptr)) {
-    // Mark as inside if the voxel distance is negative.
-    const bool is_inside = site_functor.isVoxelInsideObject(*voxel_ptr);
-    if (esdf_voxel->is_inside && is_inside == false) {
-      clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-      to_clear = true;
-    }
-    esdf_voxel->is_inside = is_inside;
-    if (is_inside && site_functor.isVoxelNearSurface(*voxel_ptr)) {
-      esdf_voxel->is_site = true;
+  if (block_ptr == nullptr) {
+    // this block exists in the esdf layer but not the tsdf layer. so it
+    // should be marked as a site
+
+    // grab the voxel
+    CertifiedEsdfVoxel* esdf_voxel =
+        &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+    esdf_voxel->is_inside = true;
+    esdf_voxel->is_site = true;
+    esdf_voxel->squared_distance_vox = 0.0f;
+    esdf_voxel->parent_direction.setZero();
+    esdf_voxel->observed = true;
+    updated = true;
+
+  } else {
+    // there is a valid tsdf underlying this value
+
+    const VoxelType* voxel_ptr =
+        &block_ptr->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+
+    CertifiedEsdfVoxel* esdf_voxel =
+        &esdf_block->voxels[voxel_index.x][voxel_index.y][voxel_index.z];
+
+    bool is_inside = site_functor.isVoxelInsideObject(*voxel_ptr);
+    bool is_site = site_functor.isVoxelNearSurface(*voxel_ptr);
+
+    if (is_inside && is_site) {
+      // since this is a site, we should mark it as such
+      esdf_voxel->observed = true;
+      esdf_voxel->is_inside = is_inside;
       esdf_voxel->squared_distance_vox = 0.0f;
-      esdf_voxel->parent_direction.setZero();
       updated = true;
     } else {
-      if (esdf_voxel->is_site) {
-        esdf_voxel->is_site = false;
-        // This voxel needs to be cleared.
-        clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-        to_clear = true;
-      } else if (!esdf_voxel->observed) {
-        // This is a brand new voxel.
-        clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-      } else if (esdf_voxel->squared_distance_vox <= 1e-4) {
-        // This is an invalid voxel that should be cleared.
-        clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-        to_clear = true;
-      }
+      // this block should be cleared
+      clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
+      esdf_voxel->observed = true;
+      esdf_voxel->is_inside = is_inside;
+      to_clear = true;
     }
-    esdf_voxel->observed = true;
-  } else {
-    clearVoxelDevice(esdf_voxel, max_squared_distance_vox);
-    to_clear = true;
-    esdf_voxel->observed = false;
   }
 
   __syncthreads();
-
   if (threadIdx.x == 1 && threadIdx.y == 1 && threadIdx.z == 1) {
     if (updated) {
       updated_vec[atomicAdd(updated_vec_size, 1)] = block_indices[block_idx];

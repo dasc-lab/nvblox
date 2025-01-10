@@ -45,10 +45,16 @@ class RgbdDataLoaderInterface {
                                   Camera* camera_ptr,           // NOLINT
                                   ColorImage* color_frame_ptr = nullptr) = 0;
 
+  virtual bool load_trajectory() = 0;
+
+  std::vector<Transform> get_true_trajectory() { return true_trajectory_; };
+
  protected:
   // Objects which do (multithreaded) image loading.
   std::unique_ptr<ImageLoader<DepthImage>> depth_image_loader_;
   std::unique_ptr<ImageLoader<ColorImage>> color_image_loader_;
+
+  std::vector<Transform> true_trajectory_;
 
   // Indicates if the dataset loader was constructed in a state that was good to
   // go. Initializes to true, so child class constructors indicate failure by

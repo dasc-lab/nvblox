@@ -72,21 +72,22 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
 
 void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
                                   const float eps_t) {
-  // Call the integrator.
-  if (!certified_mapping_enabled) {
-    LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
-    return;
-  }
-  Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
+  // // Call the integrator.
+  // if (!certified_mapping_enabled) {
+  //   LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
+  //   return;
+  // }
+  // Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
 
-  tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
-                                     T_L_C, eps_R, eps_t, voxel_size_m_,
-                                     t_delta);
-  prev_T_L_C_ = T_L_C;
-  // Add all blocks to the update queue, as they will all have been deflated.
-  const std::vector<Index3D> all_blocks =
-      layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
-  certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
+  // tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
+  //                                    T_L_C, eps_R, eps_t, voxel_size_m_,
+  //                                    t_delta);
+  // prev_T_L_C_ = T_L_C;
+  // // Add all blocks to the update queue, as they will all have been deflated.
+  // const std::vector<Index3D> all_blocks =
+  //     layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
+  // certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
+  LOG(FATAL) << "Should not be here?";
 }
 
 void Mapper::deflateCertifiedTsdf(const Transform& T_L_C,
@@ -202,14 +203,23 @@ std::vector<Index3D> Mapper::updateEsdf() {
   }
 
   if (certified_mapping_enabled) {
-    std::vector<Index3D> certified_esdf_blocks_to_update_vector(
-        certified_esdf_blocks_to_update_.begin(),
-        certified_esdf_blocks_to_update_.end());
-    certified_esdf_integrator_.integrateBlocks(
+    // while it would be nice to just update the blocks we want to update
+    // because of the Dev wrote the certified esdf integrator, it is safer to
+    // update everything directly.
+    // std::vector<Index3D> certified_esdf_blocks_to_update_vector(
+    //     certified_esdf_blocks_to_update_.begin(),
+    //     certified_esdf_blocks_to_update_.end());
+    // certified_esdf_integrator_.integrateBlocks(
+    //     layers_.get<CertifiedTsdfLayer>(),
+    //     certified_esdf_blocks_to_update_vector,
+    //     layers_.getPtr<CertifiedEsdfLayer>());
+    // certified_esdf_blocks_to_update_.clear();
+    // certified_esdf_blocks_to_update_.clear();
+
+    // now we update everything
+    certified_esdf_integrator_.integrateLayer(
         layers_.get<CertifiedTsdfLayer>(),
-        certified_esdf_blocks_to_update_vector,
         layers_.getPtr<CertifiedEsdfLayer>());
-    certified_esdf_blocks_to_update_.clear();
   }
   // Mark blocks as updated
   esdf_blocks_to_update_.clear();
@@ -223,10 +233,10 @@ void Mapper::generateEsdf() {
   esdf_mode_ = EsdfMode::k3D;
 
   if (projective_layer_type_ == ProjectiveLayerType::kTsdf) {
-    esdf_integrator_.integrateBlocks(
-        layers_.get<TsdfLayer>(), layers_.get<TsdfLayer>().getAllBlockIndices(),
-        layers_.getPtr<EsdfLayer>());
+    esdf_integrator_.integrateLayer(layers_.get<TsdfLayer>(),
+                                    layers_.getPtr<EsdfLayer>());
   } else if (projective_layer_type_ == ProjectiveLayerType::kOccupancy) {
+    // TODO(someone): think about how to update when in occupancy mode
     esdf_integrator_.integrateBlocks(
         layers_.get<OccupancyLayer>(),
         layers_.get<OccupancyLayer>().getAllBlockIndices(),
@@ -234,9 +244,8 @@ void Mapper::generateEsdf() {
   }
 
   if (certified_mapping_enabled) {
-    certified_esdf_integrator_.integrateBlocks(
+    certified_esdf_integrator_.integrateLayer(
         layers_.get<CertifiedTsdfLayer>(),
-        layers_.get<CertifiedTsdfLayer>().getAllBlockIndices(),
         layers_.getPtr<CertifiedEsdfLayer>());
   }
 }
@@ -244,6 +253,7 @@ void Mapper::generateEsdf() {
 std::vector<Index3D> Mapper::updateEsdfSlice(float slice_input_z_min,
                                              float slice_input_z_max,
                                              float slice_output_z) {
+  // WARNING: do not use with certified TSDFs
   CHECK(esdf_mode_ != EsdfMode::k3D)
       << "Currently, we limit computation of the ESDF to 2d *or* 3d. Not both.";
   esdf_mode_ = EsdfMode::k2D;

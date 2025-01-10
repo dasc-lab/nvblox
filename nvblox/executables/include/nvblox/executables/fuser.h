@@ -34,8 +34,12 @@ limitations under the License.
 #include "nvblox/mesh/mesh_integrator.h"
 #include "nvblox/rays/sphere_tracer.h"
 #include "nvblox/utils/logging.h"
+#include "nvblox/mesh/mesh.h"
+#include "nvblox/io/mesh_io.h"
 
 #include <liegroups/liegroups.hpp>
+
+#include <Eigen/Dense>
 
 namespace nvblox {
 
@@ -50,6 +54,19 @@ class Fuser {
   // Runs an experiment
   int run();
 
+  template<typename Scalar, int Dim, int Mode>
+  friend std::ostream& operator<<(std::ostream& os, const Eigen::Transform<Scalar, Dim, Mode>& transform);
+
+  // Working modes
+  enum class Mode {
+    BASELINE,
+    HEURISTIC,
+    CERTIFIED
+  };
+
+  // Set default working mode to BASELINE
+  Mode exec_mode_ = Mode::BASELINE;
+
   // Set various settings.
   void setVoxelSize(float voxel_size);
   void setProjectiveFrameSubsampling(int subsample);
@@ -58,10 +75,19 @@ class Fuser {
   void setEsdfFrameSubsampling(int subsample);
   void setEsdfMode(Mapper::EsdfMode esdf_mode);
 
+  // create perturbed trajectory
+  bool create_perturbed_trajectory();
+
   // Integrate certain layers.
   bool integrateFrame(const int frame_number);
   bool integrateFrames();
   void updateEsdf();
+
+  // Transform certified mesh to estimated body-fixed frame
+  Mesh transformMesh(const Mesh& mesh, int frame_number);
+
+  // Get Transfom to convert to ground truth
+  Transform getGtTransform(int frame_number);
 
   // Output a pointcloud tsdf as PLY file.
   bool outputTsdfPointcloudPly();
@@ -81,6 +107,13 @@ class Fuser {
   bool outputMapToFile();
   // Output the perturbed trajectory to a file
   bool outputTrajectoryToFile();
+  // Output the ground truth transform to a file
+  bool outputGtTransformToFile(Transform&);
+
+  // Intermediate Output for evaluation 
+  bool outputInterMeshPly(const std::string&);
+  bool outputInterCertifiedMeshPly(const std::string&);
+  bool outputInterTrajectoryToFile(const std::string&);
 
   // Get the mapper (useful for experiments where we modify mapper settings)
   Mapper& mapper();
@@ -93,6 +126,12 @@ class Fuser {
 
   // Set the covariance matrix of the odometry error per frame
   bool setOdometryErrorCovariance(LieGroups::Matrix6f Sigma);
+
+  // Set the standard deviation
+  bool setStandardDeviation(float standard_deviation);
+
+  // Set output directory default paths
+  bool setOutputDirDefaultPaths();
 
   // Dataset settings.
   int num_frames_to_integrate_ = std::numeric_limits<int>::max();
@@ -120,10 +159,16 @@ class Fuser {
   std::unique_ptr<Mapper> mapper_;
 
   // Odometry Error Params
+  float n_std_ = 1.0;
   LieGroups::Matrix6f odometry_error_cov_ = LieGroups::Matrix6f::Zero();
-  Transform T_L_Ckm1 = Transform::Identity();
-  Transform T_L_Ckm1_true = Transform::Identity();
+  std::vector<Transform> true_trajectory_;
   std::vector<Transform> trajectory_;  // save the perturbed trajectory
+
+  // keep track of the frame number
+  int frame_number_ = 0;
+
+  // heuristic mode parameter
+  float clearing_radius_ = 3.0;
 
   // Output paths
   std::string timing_output_path_;
@@ -132,9 +177,19 @@ class Fuser {
   std::string certified_esdf_output_path_;
   std::string occupancy_output_path_;
   std::string mesh_output_path_;
+  std::string transformed_mesh_output_path_;
   std::string certified_mesh_output_path_;
+  std::string transformed_certified_mesh_output_path_;
   std::string map_output_path_;
   std::string trajectory_output_path_;
+  std::string gt_transform_output_path_;
+  std::string output_dir_path_;
+  std::string working_mode_;
+
+  // Intermediate Output paths for evaluation 
+  std::string inter_mesh_output_path_;
+  std::string inter_certified_mesh_output_path_;
+  std::string inter_trajectory_output_path_;
 };
 
 }  //  namespace nvblox

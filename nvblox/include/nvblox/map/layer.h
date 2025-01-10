@@ -88,6 +88,14 @@ class BlockLayer : public BaseLayer {
   std::vector<Index3D> getAllBlockIndices() const;
   std::vector<BlockType*> getAllBlockPointers();
 
+  // Get all block indices, but with a boundary layer of indices that include
+  // the neighbors
+  std::vector<Index3D> getAllBlockIndicesWithBoundaryLayer() const;
+
+  // Get the boundary layer around a set of block indices
+  std::vector<Index3D> getBoundaryLayerAroundBlockIndices(
+      const std::vector<Index3D>& block_indices) const;
+
   /// Check if allocated
   bool isBlockAllocated(const Index3D& index) const;
 
