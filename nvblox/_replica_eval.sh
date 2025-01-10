@@ -1,6 +1,6 @@
 #!/bin/bash
 
-EVAL_RES_DIR=./eavl_results
+EVAL_RES_DIR=./eval_results
 
 # Run fuse_replica on office0 dataset
 echo "Running fuse_replica on office0"
@@ -12,7 +12,7 @@ DATASET_DIR="$HOME/data/Replica/office0"
 
 "${BUILD_DIR}/fuse_replica" "$DATASET_DIR" \
     --output_dir_path="$EVAL_RES_DIR" \
-    --working_mode="BASELINE"\
+    --working_mode="CERTIFIED"\
     --voxel_size=0.02 \
     --num_frames=2000 \
     --standard_deviation=1 \
