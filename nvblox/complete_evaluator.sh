@@ -38,16 +38,18 @@ for j in {0..7}; do
     # Loop to run all three modes
     for i in {0..2}; do
         WORKING_MODE=${WORKING_MODES[$i]}
+        OUTPUT_LOG_PATH="${EVAL_RES_DIR}/output_${WORKING_MODE}.txt"
+
         echo "Run #$((i + 1)) with working mode: $WORKING_MODE"
         "${BUILD_DIR}/fuse_replica" "$DATASET_DIR" \
-            --output_dir_path="$EVAL_RES_DIR" \
+            --output_dir_path="${EVAL_RES_DIR}" \
             --working_mode="$WORKING_MODE" \
             --voxel_size=0.02 \
             --num_frames=10 \
             --standard_deviation=3 \
             --clearing_radius=3 \
-            --odometry_error_covariance=1e-5 > output_$((i + 1)).txt 2>&1
-        echo "Run #$((i + 1)) with working mode: $WORKING_MODE completed. Output logged to output_$((i + 1)).txt"
+            --odometry_error_covariance=1e-5 > ${OUTPUT_LOG_PATH} 2>&1
+        echo "Run #$((i + 1)) with working mode: $WORKING_MODE completed. Output logged to ${OUTPUT_LOG_PATH}"
     done
     
     echo "Transforming BASELINE ESDF"
@@ -58,8 +60,7 @@ for j in {0..7}; do
     
     echo "Transfroming HEURISTIC ESDF"
     python3 transform_esdf.py ./"$EVAL_RES_DIR"/heuristic_esdf.ply ./"$EVAL_RES_DIR"/transformed_heuristic_esdf.ply ./"$EVAL_RES_DIR"/gt_transform.txt
-
-
+    
     # do vis
     # python3 color_toggle_viz.py ./office4_mesh.ply ./eval_results/transformed_mesh.ply ./eval_results/transformed_certified_mesh.ply ./eval_results/transformed_heuristic_mesh.ply
 done
