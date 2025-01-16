@@ -100,7 +100,8 @@ def process_violation_ply_files(environment, ref_filenames, voxel_size=0.02):
 
             folder_results[method] = {"violation_rate": violation_rate,
                                    "max_distance": max_distance,
-                                   "volume": volume}
+                                   "volume": volume, 
+                                   "total_violations": N_violating_points}
 
         environment_results[subfolder] = folder_results
 
@@ -111,14 +112,20 @@ def process_result_directory(result_folder):
     # Get all environments in the parent folder
     environments = [f.path for f in os.scandir(result_folder) if f.is_dir()]
     environments.sort()
-    environments = ["./violation_results/office0"]
+    # environments = [
+    #         "./violation_results/office0",
+    #         "./violation_results/office1",
+    #         "./violation_results/office2",
+    #         "./violation_results/office3",
+    #         "./violation_results/office4"
+    #         ]
 
     row_folder = [os.path.basename(f) for f in environments]
     row_sigma = ["1e-5", "1e-6"]
 
     N_rows = len(row_folder) * len(row_sigma)
 
-    col_metric = ["Violation Rate (%)", "Max Violation (mm)", "SFC Volume (m3)"]
+    col_metric = ["Violation Rate (%)", "Max Violation (mm)", "SFC Volume (m3)", "Total Violations"]
     col_method = ["Baseline", "Heuristic", "Certified"]
 
     N_cols = len(col_metric) * len(col_method)
@@ -132,14 +139,10 @@ def process_result_directory(result_folder):
     ref_filenames = ["baseline", "heuristic", "certified"]
 
     results = {}
-    cnt = 0
     for env, environment in zip(row_folder, environments):
-        if cnt == 1:
-            break
         folder_res = process_violation_ply_files(environment, ref_filenames)
         results[env] = folder_res
         logging.info(" ")
-        cnt+=1
 
     pprint.pprint(results)
 
@@ -148,7 +151,9 @@ def process_result_directory(result_folder):
         for cov_name, cov_data in env_data.items():
             row.append([cov_data['baseline']['violation_rate'], cov_data['heuristic']['violation_rate'], cov_data['certified']['violation_rate'],
                         cov_data['baseline']['max_distance'], cov_data['heuristic']['max_distance'], cov_data['certified']['max_distance'],
-                        cov_data['baseline']['volume'], cov_data['heuristic']['volume'], cov_data['certified']['volume']])
+                        cov_data['baseline']['volume'], cov_data['heuristic']['volume'], cov_data['certified']['volume'],
+                        cov_data['baseline']['total_violations'], cov_data['heuristic']['total_violations'], cov_data['certified']['total_violations'],
+                        ])
 
 
     df_res = np.vstack(row)
@@ -157,9 +162,12 @@ def process_result_directory(result_folder):
 
 
     df = pd.DataFrame(df_res, index=row_indices, columns=col_indices)
+    print(df)
+
+    df.to_csv('summary_results_sdf.csv')
 
     # Plot the table
-    plt.figure(figsize=(12, len(environments) * 0.5 + 1))
+    plt.figure(figsize=(16, len(environments) * 0.5 + 1))
     plt.axis('off')
     table = plt.table(cellText=df.values, colLabels=[f"{c[0]}\n{c[1]}" for c in col_indices], rowLabels=df.index, loc='center', cellLoc='center')
     table.auto_set_font_size(False)
