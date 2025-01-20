@@ -39,6 +39,14 @@ Mapper::Mapper(const std::string& map_filepath, MemoryType memory_type)
   loadMap(map_filepath);
 }
 
+
+bool Mapper::enableCertifiedMapping(bool enable) {
+  certified_mapping_enabled = enable;
+  LOG(INFO) << "Certified mapping is now "
+            << (certified_mapping_enabled ? "enabled" : "disabled");
+  return certified_mapping_enabled;
+}
+
 void Mapper::integrateDepth(const DepthImage& depth_frame,
                             const Transform& T_L_C, const Camera& camera) {
   // Call the integrator.

@@ -97,6 +97,10 @@ class Mapper : public MapperBase {
   Mapper(Mapper&& other) = default;
   Mapper& operator=(Mapper&& other) = default;
 
+  // enable or disable certified mapping
+  // @return the new state of certified mapping
+  bool enableCertifiedMapping(bool enable);
+
   /// Integrates a depth frame into the tsdf reconstruction.
   ///@param depth_frame Depth frame to integrate. Depth in the image is
   ///                   specified as a float representing meters.
@@ -357,6 +361,10 @@ class Mapper : public MapperBase {
   /// Getter
   /// @return The voxel size in meters
   float voxel_size_m() const { return voxel_size_m_; };
+
+  /// Getter
+  /// @return whether certified mapping is enabled
+  bool certifiedMappingEnabled() const { return certified_mapping_enabled; }
 
   /// Saving and loading functions.
   /// Saving a map will serialize the TSDF and ESDF layers to a file.
