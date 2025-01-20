@@ -275,6 +275,11 @@ TsdfDeflationIntegrator::~TsdfDeflationIntegrator() {
 void TsdfDeflationIntegrator::deflate(
     VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, const Transform& T_L_C,
     float eps_R, float eps_t, float voxel_size, const Vector3f& t_delta) {
+  // throw a warning because we shouldnt be here!!
+  LOG(WARNING) << "Using the wrong deflation function. This is not the correct "
+                  "function to use. Use the other one.";
+  return;
+
   CHECK_NOTNULL(layer_ptr);
   if (layer_ptr->numAllocatedBlocks() == 0) {
     // Empty layer, nothing to do here.
@@ -296,6 +301,7 @@ void TsdfDeflationIntegrator::deflate(
     return;
   }
   deflateDistance(layer_ptr, T_L_C, T_Ck_Ckm1, Sigma, n_std);
+
   if (deallocate_fully_deflated_blocks_) {
     deallocateFullyDeflatedBlocks(layer_ptr);
   }
@@ -308,6 +314,11 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
                                               float eps_R, float eps_t,
                                               float voxel_size,
                                               const Vector3f& t_delta) {
+  // should not be here
+  LOG(WARNING) << "Using the wrong deflation function. This is not the correct "
+                  "function to use. Use the other one.";
+  return;
+
   CHECK_NOTNULL(layer_ptr);
   const int num_allocated_blocks = layer_ptr->numAllocatedBlocks();
 
