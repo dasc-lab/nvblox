@@ -14,15 +14,6 @@ class TsdfDeflationIntegrator {
   TsdfDeflationIntegrator(bool deallocate_fully_deflated_blocks = true);
   ~TsdfDeflationIntegrator();
 
-  /// Deflate the occupancy grid.
-  /// Does not affect unallocated blocks.
-  /// @param layer_ptr The occupancy layer to deflate
-  /// @param amount The amount to deflate by (typically positive)
-  // void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr, float decrement);
-  void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr,
-               const Transform& T_L_C, float eps_R, float eps_t,
-               float voxel_size, const Vector3f& t_delta);
-  
   void deflate(VoxelBlockLayer<CertifiedTsdfVoxel>* layer_ptr,
                const Transform& T_L_C, 
                const Transform& T_Ck_Ckm1,
@@ -33,21 +24,19 @@ class TsdfDeflationIntegrator {
   // SDF.
   float min_distance = -0.10;
 
+  // Setter
   void set_deallocate_fully_deflated_blocks(bool dealloc)
   {
     deallocate_fully_deflated_blocks_ = dealloc;
   }
 
-  bool get_deallocate_fully_deflated_blocks() {
+  // Getter
+  bool deallocate_fully_deflated_blocks() {
     return deallocate_fully_deflated_blocks_;
   }
 
 
  private:
-  // void deflateDistance(CertifiedTsdfLayer* layer_ptr, float decrement);
-  void deflateDistance(CertifiedTsdfLayer* layer_ptr, const Transform& T_L_C,
-                       float eps_R, float eps_t, float voxel_size,
-                       const Vector3f& t_delta);
   
   void deflateDistance(CertifiedTsdfLayer* layer_ptr,
                                               const Transform& T_L_C,
@@ -55,8 +44,9 @@ class TsdfDeflationIntegrator {
                                               const TransformCovariance & Sigma, 
                                               const float n_std=1.0
                                               );
-
   void deallocateFullyDeflatedBlocks(CertifiedTsdfLayer* layer_ptr);
+
+
   // Internal buffers
   host_vector<CertifiedTsdfBlock*> allocated_block_ptrs_host_;
   device_vector<CertifiedTsdfBlock*> allocated_block_ptrs_device_;

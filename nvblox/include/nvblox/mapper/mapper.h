@@ -75,6 +75,9 @@ class Mapper : public MapperBase {
   // Whether to perform certified mapping updates. Will only be used with TSDF
   // projective layer enabled.
   bool certified_mapping_enabled{false};
+  
+  // whether to deallaocate fully deflated blocks
+  bool deallocate_fully_deflated_blocks_{true};
 
   Mapper() = delete;
   /// Constructor
@@ -100,6 +103,10 @@ class Mapper : public MapperBase {
   // enable or disable certified mapping
   // @return the new state of certified mapping
   bool enableCertifiedMapping(bool enable);
+  
+  // Setter
+  // choose whether the deflation integrator will also deflate blocks
+  bool enableDeallocateFullyDeflatedBlocks(bool enable);
 
   /// Integrates a depth frame into the tsdf reconstruction.
   ///@param depth_frame Depth frame to integrate. Depth in the image is
@@ -110,14 +117,14 @@ class Mapper : public MapperBase {
   void integrateDepth(const DepthImage& depth_frame, const Transform& T_L_C,
                       const Camera& camera);
 
-  /// Performs a deflation update on the certified TSDF. This may be called
-  /// independently of projective updates, as we may move without acquiring new
-  /// data.
-  ///@param T_L_C Pose of the camera, specified as a transform from Camera-frame
-  ///             to Layer-frame transform.
-  // TODO(rgg): document behavior when implemented here.
-  void deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
-                            const float eps_t);
+  // /// Performs a deflation update on the certified TSDF. This may be called
+  // /// independently of projective updates, as we may move without acquiring new
+  // /// data.
+  // ///@param T_L_C Pose of the camera, specified as a transform from Camera-frame
+  // ///             to Layer-frame transform.
+  // // TODO(rgg): document behavior when implemented here.
+  // void deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
+  //                           const float eps_t);
 
   /// Performs a deflation update on the certified TSDF. This may be called
   /// independently of projective updates, as we may move without acquiring new
@@ -366,6 +373,12 @@ class Mapper : public MapperBase {
   /// @return whether certified mapping is enabled
   bool certifiedMappingEnabled() const { return certified_mapping_enabled; }
 
+  /// Getter
+  /// @return whether the tsdf deflation integrator will deallocate fully deflated blocks
+  bool deallocateFullyDeflatedBlocksEnabled() const {
+    return deallocate_fully_deflated_blocks_;
+  }
+
   /// Saving and loading functions.
   /// Saving a map will serialize the TSDF and ESDF layers to a file.
   ///@param filename
@@ -405,7 +418,7 @@ class Mapper : public MapperBase {
   /// updateEsdfSlice(). This member tracks which mode we're in.
   EsdfMode esdf_mode_ = EsdfMode::kUnset;
 
-  /// Integrators
+  /// Integators
   ProjectiveTsdfIntegrator tsdf_integrator_;
   CertifiedProjectiveTsdfIntegrator certified_tsdf_integrator_;
   TsdfDeflationIntegrator tsdf_deflation_integrator_;

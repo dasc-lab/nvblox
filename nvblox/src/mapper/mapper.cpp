@@ -46,6 +46,16 @@ bool Mapper::enableCertifiedMapping(bool enable) {
             << (certified_mapping_enabled ? "enabled" : "disabled");
   return certified_mapping_enabled;
 }
+  
+bool Mapper::enableDeallocateFullyDeflatedBlocks(bool enable){
+
+    deallocate_fully_deflated_blocks_ = enable;
+
+    // change the setting in the tsdf deflation integrator
+    tsdf_deflation_integrator_.set_deallocate_fully_deflated_blocks(enable);
+
+    return deallocate_fully_deflated_blocks_;
+  }
 
 void Mapper::integrateDepth(const DepthImage& depth_frame,
                             const Transform& T_L_C, const Camera& camera) {
@@ -78,25 +88,25 @@ void Mapper::integrateDepth(const DepthImage& depth_frame,
   esdf_blocks_to_update_.insert(updated_blocks.begin(), updated_blocks.end());
 }
 
-void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
-                                  const float eps_t) {
-  // // Call the integrator.
-  // if (!certified_mapping_enabled) {
-  //   LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
-  //   return;
-  // }
-  // Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
-
-  // tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
-  //                                    T_L_C, eps_R, eps_t, voxel_size_m_,
-  //                                    t_delta);
-  // prev_T_L_C_ = T_L_C;
-  // // Add all blocks to the update queue, as they will all have been deflated.
-  // const std::vector<Index3D> all_blocks =
-  //     layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
-  // certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
-  LOG(FATAL) << "Should not be here?";
-}
+// void Mapper::deflateCertifiedTsdf(const Transform& T_L_C, const float eps_R,
+//                                   const float eps_t) {
+//   // // Call the integrator.
+//   // if (!certified_mapping_enabled) {
+//   //   LOG(ERROR) << "Certified mapping is not enabled. Cannot deflate.";
+//   //   return;
+//   // }
+//   // Vector3f t_delta = T_L_C.translation() - prev_T_L_C_.translation();
+// 
+//   // tsdf_deflation_integrator_.deflate(layers_.getPtr<CertifiedTsdfLayer>(),
+//   //                                    T_L_C, eps_R, eps_t, voxel_size_m_,
+//   //                                    t_delta);
+//   // prev_T_L_C_ = T_L_C;
+//   // // Add all blocks to the update queue, as they will all have been deflated.
+//   // const std::vector<Index3D> all_blocks =
+//   //     layers_.getPtr<CertifiedTsdfLayer>()->getAllBlockIndices();
+//   // certified_esdf_blocks_to_update_.insert(all_blocks.begin(), all_blocks.end());
+//   LOG(FATAL) << "Should not be here?";
+// }
 
 void Mapper::deflateCertifiedTsdf(const Transform& T_L_C,
                                   const TransformCovariance& Sigma,
