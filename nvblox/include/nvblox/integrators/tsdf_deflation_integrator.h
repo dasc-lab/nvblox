@@ -22,7 +22,7 @@ class TsdfDeflationIntegrator {
 
   // Minimum value to decay to. Smaller values allowed if already present in
   // SDF.
-  float min_distance = -0.10;
+  float min_distance = -0.1;
 
   // Setter
   void set_deallocate_fully_deflated_blocks(bool dealloc)
@@ -61,9 +61,8 @@ class TsdfDeflationIntegrator {
   // CUDA stream to process ingration on
   cudaStream_t integration_stream_;
   
-  // Whether to deallocate blocks that are fully deflated (could be well within
-  // an obstacle)
-  bool deallocate_fully_deflated_blocks_ = false;
+  // Whether to deallocate blocks that are fully deflated 
+  bool deallocate_fully_deflated_blocks_ = true;
 };
 
 }  // namespace nvblox

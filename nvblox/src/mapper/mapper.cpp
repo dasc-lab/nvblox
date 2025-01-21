@@ -231,7 +231,7 @@ std::vector<Index3D> Mapper::updateEsdf() {
     //     layers_.getPtr<CertifiedEsdfLayer>());
     // certified_esdf_blocks_to_update_.clear();
     // certified_esdf_blocks_to_update_.clear();
-
+    
     // now we update everything
     certified_esdf_integrator_.integrateLayer(
         layers_.get<CertifiedTsdfLayer>(),

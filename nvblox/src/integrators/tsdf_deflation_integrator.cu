@@ -84,7 +84,8 @@ __global__ void deflateDistanceKernel(
       &(block_ptrs[blockIdx.x]->voxels[threadIdx.x][threadIdx.y][threadIdx.z]);
 
   // Check if voxel is already deflated and skip if so
-  if (voxel_ptr->distance < min_distance) {
+  constexpr float kMinWeight = 1.0e-4;
+  if ((voxel_ptr->distance < min_distance) || (voxel_ptr->weight <= kMinWeight)) {
     voxel_ptr->weight = 0.0f;  // Ensure weight is set to 0 even if there was a
                                // race condition earlier
     return;
@@ -100,8 +101,6 @@ __global__ void deflateDistanceKernel(
   // actually deflating the voxel's value
   // This is just for kernel performance, as we don't do anything with the
   // information of whether or not the voxel has been updated for now.
-  // TODO(rgg): don't perform ESDF update on voxels that have not been observed
-  // / have been fully deflated.
   constexpr float kSlightlyObservedVoxelWeight = 0.01;
   if (voxel_ptr->weight < kSlightlyObservedVoxelWeight) {
     return;
@@ -117,8 +116,9 @@ __global__ void deflateDistanceKernel(
   Vector3f p_camera = (*T_Ck_L) * p;
 
   float decrement = getDecrement(*T_Ck_Ckm1, p_camera, *Sigma, n_std);
-  // float decrement = 1.0;
 
+
+  // keep track of the decrement range
   decrement_range[0] = std::min(decrement_range[0], decrement);
   decrement_range[1] = std::max(decrement_range[1], decrement);
 
