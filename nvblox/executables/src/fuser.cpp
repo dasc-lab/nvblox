@@ -228,7 +228,7 @@ void Fuser::readCommandLineFlags() {
     certified_esdf_output_path_ = FLAGS_certified_esdf_output_path;
     setEsdfMode(Mapper::EsdfMode::k3D);
     LOG(INFO) << "Enabling certified mapping";
-    mapper_->certified_mapping_enabled = true;
+    mapper_->enableCertifiedMapping(true);
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("mesh_output_path").is_default) {
     LOG(INFO) << "Command line parameter found: mesh_output_path = "
@@ -248,7 +248,7 @@ void Fuser::readCommandLineFlags() {
               << FLAGS_certified_mesh_output_path;
                   setEsdfMode(Mapper::EsdfMode::k3D);
     LOG(INFO) << "Enabling certified mapping";
-    mapper_->certified_mapping_enabled = true;
+    mapper_->enableCertifiedMapping(true);
     certified_mesh_output_path_ = FLAGS_certified_mesh_output_path;
   }
   if (!gflags::GetCommandLineFlagInfoOrDie("transformed_certified_mesh_output_path")
@@ -290,7 +290,7 @@ void Fuser::readCommandLineFlags() {
 
     if (working_mode_ == "CERTIFIED") {
       LOG(INFO) << "Execution mode is CERTIFIED";
-      mapper_->certified_mapping_enabled = true;
+      mapper_->enableCertifiedMapping(true);
       exec_mode_ = Mode::CERTIFIED;
     }
 

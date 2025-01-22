@@ -1126,7 +1126,8 @@ void EsdfIntegrator::sortAndTakeUniqueIndices(
   constexpr int kNumThreads = 128;
   constexpr int kNumItemsPerThread = 4;
   if (block_indices->size() >= kNumThreads * kNumItemsPerThread) {
-    LOG(INFO) << "Vector too big to sort. Falling back to thrust.";
+    DLOG_EVERY_N(INFO, 100)
+        << "Vector too big to sort. Falling back to thrust.";
     // sort vertices to bring duplicates together
     thrust::sort(thrust::device, block_indices->begin(), block_indices->end(),
                  VectorCompare<Index3D>());
