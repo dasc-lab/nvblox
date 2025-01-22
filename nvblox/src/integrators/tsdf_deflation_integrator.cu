@@ -248,7 +248,7 @@ void TsdfDeflationIntegrator::deflateDistance(CertifiedTsdfLayer* layer_ptr,
   CHECK(block_fully_deflated_device_.size() == num_allocated_blocks);
   CHECK(block_fully_deflated_host_.size() == num_allocated_blocks);
 
-  LOG(INFO) << "Decrement Range: " << decrement_range_host_[0] << " " << decrement_range_host_[1];
+  DLOG(INFO) << "Decrement Range: " << decrement_range_host_[0] << " " << decrement_range_host_[1];
 }
 
 void TsdfDeflationIntegrator::deallocateFullyDeflatedBlocks(
@@ -269,7 +269,7 @@ void TsdfDeflationIntegrator::deallocateFullyDeflatedBlocks(
       num_cleared += 1;
     }
   }
-  LOG(INFO) << "CertifiedTSDF deallocated " << num_cleared << " blocks";
+  DLOG(INFO) << "CertifiedTSDF deallocated " << num_cleared << " blocks";
 }
 
 }  // namespace nvblox
