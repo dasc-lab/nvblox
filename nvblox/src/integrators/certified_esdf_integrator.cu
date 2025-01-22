@@ -120,6 +120,13 @@ void CertifiedEsdfIntegrator::occupied_threshold(float occupied_threshold) {
 // entire layer everytime
 void CertifiedEsdfIntegrator::integrateLayer(const CertifiedTsdfLayer& tsdf_layer,
                                     CertifiedEsdfLayer* esdf_layer) {
+
+  // first clear the layer
+  // TODO(dev): see if we can reuse memory but also deallocate the blocks that should be removed
+  esdf_layer->clear();
+
+  // get all the tsdf voxels + a boundary layer around them
+  // the boundary layer will get marked as sites from which the mesh will be extracted
   std::vector<Index3D> block_indices_with_bl =
       tsdf_layer.getAllBlockIndicesWithBoundaryLayer();
 
