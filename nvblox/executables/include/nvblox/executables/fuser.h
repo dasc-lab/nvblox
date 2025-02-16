@@ -184,12 +184,9 @@ class Fuser {
   std::string trajectory_output_path_;
   std::string gt_transform_output_path_;
   std::string output_dir_path_;
+  std::string intermediate_output_dir_path_;
   std::string working_mode_;
 
-  // Intermediate Output paths for evaluation 
-  std::string inter_mesh_output_path_;
-  std::string inter_certified_mesh_output_path_;
-  std::string inter_trajectory_output_path_;
 };
 
 }  //  namespace nvblox

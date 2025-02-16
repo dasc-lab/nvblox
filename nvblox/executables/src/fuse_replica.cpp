@@ -53,10 +53,10 @@ int main(int argc, char* argv[]) {
   }
 
   // Mesh location (optional)
-  if (argc >= 3) {
-    fuser->mesh_output_path_ = argv[2];
-    LOG(INFO) << "Mesh location:" << fuser->mesh_output_path_;
-  }
+  // if (argc >= 3) {
+  //   fuser->mesh_output_path_ = argv[2];
+  //   LOG(INFO) << "Mesh location:" << fuser->mesh_output_path_;
+  // }
 
   // Make sure the layers are the correct resolution.
   return fuser->run();

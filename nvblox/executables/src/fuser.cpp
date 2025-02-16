@@ -62,16 +62,9 @@ DEFINE_string(transformed_certified_mesh_output_path, "",
 DEFINE_string(map_output_path, "", "File in which to save the serialized map.");
 DEFINE_string(trajectory_output_path, "",
               "File in which to save the trajectory.");
-DEFINE_string(output_dir_path, "", "Directory where all the ouput files will be stored.");
+DEFINE_string(output_dir_path, "", "Directory where all the output files will be stored.");
+DEFINE_string(intermediate_output_dir_path, "", "Direcotry where all the intermediate output files will be stored.");
 DEFINE_string(working_mode, "BASELINE", "Modes: BASELINE, CERTIFIED and HEURISTIC");
-
-// Intermediate output paths for evaluation
-DEFINE_string(inter_mesh_output_path, "", 
-              "Directory where intermediate surface meshes will be saved");
-DEFINE_string(inter_certified_mesh_output_path, "",
-              "Directory where intermediate certified surface meshes will be saved");
-DEFINE_string(inter_trajectory_output_path, "",
-              "Directory where intermediate trajectories will be saved");
 
 // Subsampling
 DEFINE_int32(projective_frame_subsampling, 0,
@@ -277,6 +270,12 @@ void Fuser::readCommandLineFlags() {
 
     output_dir_path_ = FLAGS_output_dir_path;
   }          
+  if (!gflags::GetCommandLineFlagInfoOrDie("intermediate_output_dir_path")
+            .is_default) {
+    LOG(INFO) << "Command line parameter found: intermediate_output_dir_path = "
+              << FLAGS_intermediate_output_dir_path;
+    intermediate_output_dir_path_ = FLAGS_intermediate_output_dir_path;
+  }
   if (!gflags::GetCommandLineFlagInfoOrDie("working_mode")
             .is_default) {
     LOG(INFO) << "Command line parameter found: working_mode = "
@@ -305,32 +304,6 @@ void Fuser::readCommandLineFlags() {
               << FLAGS_clearing_radius;
     clearing_radius_ = FLAGS_clearing_radius;
   }
-
-
-  // 
-  // Intermediate steps gflags for evaluation
-  //
-
-  if (!gflags::GetCommandLineFlagInfoOrDie("inter_mesh_output_path").is_default) {
-    LOG(INFO) << "Command line parameter found: inter_mesh_output_path = "
-              << FLAGS_inter_mesh_output_path;
-    inter_mesh_output_path_ = FLAGS_inter_mesh_output_path;
-  }
-  if (!gflags::GetCommandLineFlagInfoOrDie("inter_certified_mesh_output_path")
-           .is_default) {
-    LOG(INFO) << "Command line parameter found: inter_certified_mesh_output_path = "
-              << FLAGS_inter_certified_mesh_output_path;
-                  // setEsdfMode(Mapper::EsdfMode::k3D);
-    LOG(INFO) << "Enabling certified mapping";
-    inter_certified_mesh_output_path_ = FLAGS_inter_certified_mesh_output_path;
-  }
-  if (!gflags::GetCommandLineFlagInfoOrDie("inter_trajectory_output_path")
-           .is_default) {
-    LOG(INFO) << "Command line parameter found: inter_trajectory_output_path = "
-              << FLAGS_inter_trajectory_output_path;
-    inter_trajectory_output_path_ = FLAGS_inter_trajectory_output_path;
-  }
-
 
   // Subsampling flags
   if (!gflags::GetCommandLineFlagInfoOrDie("projective_frame_subsampling")
@@ -827,7 +800,7 @@ int Fuser::run() {
     outputGtTransformToFile(Tf);
 
     // Trajectory output path
-    trajectory_output_path_ = output_dir_path_ + "/trajectory.txt";
+    trajectory_output_path_ = output_dir_path_ + "/perturbed_trajectory.txt";
     outputTrajectoryToFile();
 
   }
@@ -1120,50 +1093,4 @@ bool Fuser::outputGtTransformToFile(Transform& Tf) {
   trajectory_file.close();
   return true;
 }
-
-//
-// Intermediate output function definition
-//
-
-bool Fuser::outputInterMeshPly(const std::string& filename) {
-  timing::Timer timer_write("fuser/mesh/write");
-  std::string file_path = inter_mesh_output_path_ + "/" + filename;
-  return io::outputMeshLayerToPly(mapper_->mesh_layer(), file_path);
-}
-
-bool Fuser::outputInterCertifiedMeshPly(const std::string& filename) {
-  timing::Timer timer_write("fuser/cerfified_mesh/write");
-  std::string file_path = inter_certified_mesh_output_path_ + "/" + filename;
-  return io::outputMeshLayerToPly(mapper_->certified_mesh_layer(),
-                                  file_path);
-}
-
-bool Fuser::outputInterTrajectoryToFile(const std::string& filename) {
-  timing::Timer timer_trajectory("fuser/trajectory/write");
-  std::string file_path = inter_trajectory_output_path_ + "/" + filename;
-  std::ofstream trajectory_file(file_path);
-  if (trajectory_file.is_open()) {
-    for (Transform& T : trajectory_) {
-      for (int row = 0; row < 4; row++) {
-        for (int col = 0; col < 4; col++) {
-          trajectory_file << std::fixed
-                          << std::setprecision(
-                                 std::numeric_limits<float>::max_digits10)
-                          << T(row, col);
-          if (row != 3 || col != 3) {
-            // dont print a separator if its the last element
-            trajectory_file << " ";
-          }
-        }
-      }
-      trajectory_file << std::endl;
-    }
-  } else {
-    throw std::runtime_error("could not open trajectory output file");
-    return false;
-  }
-  trajectory_file.close();
-  return true;
-}
-
 }  //  namespace nvblox
